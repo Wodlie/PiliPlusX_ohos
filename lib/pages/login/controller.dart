@@ -732,11 +732,16 @@ class LoginPageController extends GetxController
       SmartDialog.showToast('请先登录');
       return Get.toNamed('/loginPage');
     }
+    final colorScheme = ColorScheme.of(context);
     final selectAccount = List.of(Accounts.accountMode);
+    final useDisplayName = Pref.accountDisplayName;
     final options = {
       AnonymousAccount(): '0',
       ...Accounts.account.toMap().map(
-        (k, v) => MapEntry(v, k as String),
+        (k, v) => MapEntry(
+          v,
+          useDisplayName ? Pref.getAccountDisplayName(v.mid) : k as String,
+        ),
       ),
     };
     bool quickSelect = selectAccount.every((e) => e == selectAccount.first);
@@ -753,11 +758,8 @@ class LoginPageController extends GetxController
                 children: [
                   const TextSpan(text: '账号切换'),
                   TextSpan(
-                    text: '\nmid 为0时使用匿名',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: ColorScheme.of(context).outline,
-                    ),
+                    text: '\nmid为0时使用匿名',
+                    style: TextStyle(fontSize: 14, color: colorScheme.outline),
                   ),
                 ],
               ),
@@ -771,13 +773,14 @@ class LoginPageController extends GetxController
                 quickSelect = !quickSelect;
                 (context as Element).markNeedsBuild();
               },
-              child: const Text('切换'),
+              child: Text(quickSelect ? '详细' : '快速'),
             ),
           ],
         ),
         titlePadding: const .only(left: 22, top: 16, right: 22, bottom: 3),
         contentPadding: const .symmetric(vertical: 5),
-        actionsPadding: const .only(left: 16, right: 16, bottom: 10),
+        actionsPadding: const .only(left: 8, right: 16, bottom: 10),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
         content: SingleChildScrollView(
           child: AnimatedSize(
             curve: Curves.easeIn,
@@ -835,23 +838,42 @@ class LoginPageController extends GetxController
             onPressed: Get.back,
             child: Text(
               '取消',
-              style: TextStyle(color: ColorScheme.of(context).outline),
+              style: TextStyle(color: colorScheme.outline),
             ),
           ),
           TextButton(
             onPressed: () {
               Get.back();
-              for (final type in AccountType.values) {
-                final index = type.index;
-                final account = quickSelect
-                    ? selectAccount.first
-                    : selectAccount[index];
-                if (account != Accounts.accountMode[index]) {
-                  Accounts.set(type, account);
-                }
-              }
+              Get.toNamed('/loginPage');
             },
-            child: const Text('确定'),
+            child: const Text('登录新账号'),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: Get.back,
+                child: Text(
+                  '取消',
+                  style: TextStyle(color: ColorScheme.of(context).outline),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Get.back();
+                  for (final type in AccountType.values) {
+                    final index = type.index;
+                    final account = quickSelect
+                        ? selectAccount.first
+                        : selectAccount[index];
+                    if (account != Accounts.accountMode[index]) {
+                      Accounts.set(type, account);
+                    }
+                  }
+                },
+                child: const Text('确定'),
+              ),
+            ],
           ),
         ],
       ),
