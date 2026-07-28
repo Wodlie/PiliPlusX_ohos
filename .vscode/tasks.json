@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build_env",
+      "type": "shell",
+      "command": "dart",
+      "args": [
+        ".vscode/build_env.dart"
+      ],
+      "presentation": {
+        "reveal": "silent"
+      }
+    },
+    {
+      "label": "build_hap",
+      "type": "shell",
+      "command": "flutter",
+      "args": [
+        "build",
+        "hap",
+        "--dart-define-from-file=.vscode/env.json"
+      ],
+      "dependsOn": [
+        "build_env"
+      ],
+      "presentation": {
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

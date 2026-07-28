@@ -1,0 +1,427 @@
+import 'package:PiliPlus/common/constants.dart';
+import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart';
+import 'package:PiliPlus/grpc/bilibili/pagination.pb.dart';
+import 'package:PiliPlus/grpc/grpc_req.dart';
+import 'package:PiliPlus/grpc/url.dart';
+import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/utils/global_data.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:fixnum/fixnum.dart';
+
+final class ReplyNormalizedBody {
+  const ReplyNormalizedBody({
+    required this.bodyWithoutMentions,
+    required this.normalizedBody,
+    required this.effectiveBody,
+  });
+
+  final String bodyWithoutMentions;
+  final String normalizedBody;
+  final String effectiveBody;
+
+  int get effectiveLength => effectiveBody.runes.length;
+
+  bool get hasSubstantiveBody => effectiveBody.isNotEmpty;
+}
+
+abstract final class ReplyGrpc {
+  static final RegExp _voteTokenRegExp = RegExp(r'\{vote:\d+?\}');
+  static final RegExp _replyWhitespaceRegExp = RegExp(r'\s+');
+
+  static bool antiGoodsReply = Pref.antiGoodsReply;
+  static bool showBlockedReplyBanner = Pref.showBlockedReplyBanner;
+  static int minLevelForReply = Pref.minLevelForReply;
+  static RegExp replyRegExp = RegExp(
+    Pref.banWordForReply,
+    caseSensitive: false,
+  );
+  static bool enableFilter = replyRegExp.pattern.isNotEmpty;
+
+  static bool get enableAtFilter => Pref.enableAtFilter;
+  static bool get enableAtFilterPureAt => Pref.enableAtFilterPureAt;
+  static bool get enableAtFilterBodyLength => Pref.enableAtFilterBodyLength;
+  static int get atFilterBodyLengthThreshold =>
+      Pref.atFilterBodyLengthThreshold;
+  static bool get enableAtFilterAtCount => Pref.enableAtFilterAtCount;
+  static int get atFilterAtCountThreshold => Pref.atFilterAtCountThreshold;
+  static bool get enableAtFilterLikeExempt => Pref.enableAtFilterLikeExempt;
+  static int get atFilterLikeExemptThreshold =>
+      Pref.atFilterLikeExemptThreshold;
+
+  static final Map<int, String> _blockedReasons = {};
+
+  // static Future replyInfo({required int rpid}) {
+  //   return _request(
+  //     GrpcUrl.replyInfo,
+  //     ReplyInfoReq(rpid: Int64(rpid)),
+  //     ReplyInfoReply.fromBuffer,
+  //     onSuccess: (response) => response.reply,
+  //   );
+  // }
+
+  // ref BiliRoamingX
+  static final RegExp _replyPrefixRegExp = RegExp(r'^回复 @\S+?\s*:\s*');
+
+  static String _stripReplyPrefix(String message, ReplyInfo reply) {
+    if (reply.root.toInt() == 0) {
+      return message;
+    }
+    return message.replaceFirst(_replyPrefixRegExp, '');
+  }
+
+  static int _getUserAtCount(ReplyInfo reply) {
+    final Map<String, Int64> atMap = reply.content.atNameToMid;
+    if (atMap.isEmpty) {
+      return 0;
+    }
+    if (reply.root.toInt() != 0) {
+      final String stripped = _stripReplyPrefix(reply.content.message, reply);
+      return atMap.keys.where((name) => stripped.contains('@$name')).length;
+    }
+    return atMap.length;
+  }
+
+  static ReplyNormalizedBody normalizeReplyBody(ReplyInfo reply) {
+    final Content content = reply.content;
+    final String message = _stripReplyPrefix(content.message, reply);
+    final String bodyWithoutMentions = _normalizeReplyWhitespace(
+      _replaceReplyTokens(
+        message,
+        content.atNameToMid.keys.map((name) => '@$name'),
+      ),
+    );
+    final String normalizedBody = _normalizeReplyWhitespace(
+      _replaceReplyTokens(
+        bodyWithoutMentions,
+        _buildNonSubstantiveReplyTokens(content),
+      ).replaceAll(_voteTokenRegExp, ' ').replaceAll(Constants.urlRegex, ' '),
+    );
+    final String effectiveBody = _extractReplyEffectiveBody(normalizedBody);
+    return ReplyNormalizedBody(
+      bodyWithoutMentions: bodyWithoutMentions,
+      normalizedBody: normalizedBody,
+      effectiveBody: effectiveBody,
+    );
+  }
+
+  static Iterable<String> _buildNonSubstantiveReplyTokens(
+    Content content,
+  ) sync* {
+    yield* content.emotes.keys;
+    yield* content.topics.keys.map((topic) => '#$topic#');
+    yield* content.urls.keys;
+  }
+
+  static String _replaceReplyTokens(
+      String message, Iterable<String> tokens) {
+    final List<String> sortedTokens =
+        tokens.where((token) => token.isNotEmpty).toSet().toList()
+          ..sort((a, b) => b.length.compareTo(a.length));
+    var result = message;
+    for (final token in sortedTokens) {
+      result = result.replaceAll(token, ' ');
+    }
+    return result;
+  }
+
+  static String _normalizeReplyWhitespace(String value) =>
+      value.replaceAll(_replyWhitespaceRegExp, ' ').trim();
+
+  static String _extractReplyEffectiveBody(String value) {
+    final StringBuffer buffer = StringBuffer();
+    for (final int rune in value.runes) {
+      if (_isReplySubstantiveRune(rune)) {
+        buffer.writeCharCode(rune);
+      }
+    }
+    return buffer.toString();
+  }
+
+  static bool _isReplySubstantiveRune(int rune) {
+    return (rune >= 0x30 && rune <= 0x39) ||
+        (rune >= 0x41 && rune <= 0x5A) ||
+        (rune >= 0x61 && rune <= 0x7A) ||
+        (rune >= 0x00C0 && rune <= 0x02AF) ||
+        (rune >= 0x0370 && rune <= 0x052F) ||
+        (rune >= 0x0590 && rune <= 0x08FF) ||
+        (rune >= 0x0900 && rune <= 0x0E7F) ||
+        (rune >= 0x1100 && rune <= 0x11FF) ||
+        (rune >= 0x3040 && rune <= 0x30FF) ||
+        (rune >= 0x3100 && rune <= 0x318F) ||
+        (rune >= 0x31A0 && rune <= 0x31BF) ||
+        (rune >= 0x3400 && rune <= 0x4DBF) ||
+        (rune >= 0x4E00 && rune <= 0x9FFF) ||
+        (rune >= 0xAC00 && rune <= 0xD7AF) ||
+        (rune >= 0xFF10 && rune <= 0xFF19) ||
+        (rune >= 0xFF21 && rune <= 0xFF3A) ||
+        (rune >= 0xFF41 && rune <= 0xFF5A);
+  }
+
+  static bool needRemoveGoodGrpc(ReplyInfo reply) {
+    return (reply.content.urls.isNotEmpty &&
+            reply.content.urls.values.any((url) {
+              return url.hasExtra() &&
+                  (url.extra.goodsCmControl == Int64.ONE ||
+                      url.extra.hasGoodsItemId() ||
+                      url.extra.hasGoodsPrefetchedCache());
+            })) ||
+        reply.content.message.contains(Constants.goodsUrlPrefix);
+  }
+
+  static bool needRemoveGrpc(ReplyInfo reply) {
+    return (enableFilter && replyRegExp.hasMatch(reply.content.message)) ||
+        (antiGoodsReply && needRemoveGoodGrpc(reply));
+  }
+
+  static Future<LoadingState<MainListReply>> mainList({
+    int type = 1,
+    required int oid,
+    required Mode mode,
+    required String? offset,
+    required Int64? cursorNext,
+  }) async {
+    final res = await GrpcReq.request(
+      GrpcUrl.mainList,
+      MainListReq(
+        oid: Int64(oid),
+        type: Int64(type),
+        rpid: Int64.ZERO,
+        // cursor: CursorReq(
+        //   mode: mode,
+        //   next: cursorNext,
+        // ),
+        mode: mode,
+        pagination: offset == null ? null : FeedPagination(offset: offset),
+      ),
+      MainListReply.fromBuffer,
+    );
+    if (res case Success(:final response)) {
+      // keyword filter
+      if (response.hasUpTop() && needRemoveGrpc(response.upTop)) {
+        response.clearUpTop();
+      }
+
+      if (response.replies.isNotEmpty) {
+        response.replies.removeWhere((item) {
+          final hasMatch = needRemoveGrpc(item);
+          if (!hasMatch && item.replies.isNotEmpty) {
+            item.replies.removeWhere(needRemoveGrpc);
+          }
+          return hasMatch;
+        });
+      }
+    }
+    return res;
+  }
+
+  static Future<LoadingState<DetailListReply>> detailList({
+    int type = 1,
+    required int oid,
+    required int root,
+    required int rpid,
+    required Mode mode,
+    required String? offset,
+  }) async {
+    final res = await GrpcReq.request(
+      GrpcUrl.detailList,
+      DetailListReq(
+        oid: Int64(oid),
+        type: Int64(type),
+        root: Int64(root),
+        rpid: Int64(rpid),
+        scene: DetailListScene.REPLY,
+        mode: mode,
+        pagination: offset == null ? null : FeedPagination(offset: offset),
+      ),
+      DetailListReply.fromBuffer,
+    );
+    return res..dataOrNull?.root.replies.removeWhere(needRemoveGrpc);
+  }
+
+  static Future<LoadingState<DialogListReply>> dialogList({
+    int type = 1,
+    required int oid,
+    required int root,
+    required int dialog,
+    required String? offset,
+  }) async {
+    final res = await GrpcReq.request(
+      GrpcUrl.dialogList,
+      DialogListReq(
+        oid: Int64(oid),
+        type: Int64(type),
+        root: Int64(root),
+        dialog: Int64(dialog),
+        pagination: offset == null ? null : FeedPagination(offset: offset),
+      ),
+      DialogListReply.fromBuffer,
+    );
+    return res..dataOrNull?.replies.removeWhere(needRemoveGrpc);
+  }
+
+  static Future<LoadingState<SearchItemReply>> searchItem({
+    required int page,
+    required SearchItemType itemType,
+    required int oid,
+    int type = 1,
+    String? keyword,
+  }) {
+    return GrpcReq.request(
+      GrpcUrl.searchItem,
+      SearchItemReq(
+        cursor: SearchItemCursorReq(
+          next: Int64(page),
+          itemType: itemType,
+        ),
+        oid: Int64(oid),
+        type: Int64(type),
+        keyword: keyword,
+      ),
+      SearchItemReply.fromBuffer,
+    );
+  }
+
+  static bool needRemoveAtGrpc(ReplyInfo reply) {
+    if (!enableAtFilter) {
+      return false;
+    }
+
+    final int structuredAtCount = _getUserAtCount(reply);
+    if (structuredAtCount == 0) {
+      return false;
+    }
+
+    final bool hasPureAtRule = enableAtFilterPureAt;
+    final bool hasBodyLengthRule = enableAtFilterBodyLength;
+    final bool hasAtCountRule = enableAtFilterAtCount;
+    final bool hasLikeExemptRule = enableAtFilterLikeExempt;
+    final int bodyLengthThreshold = atFilterBodyLengthThreshold;
+    final int atCountThreshold = atFilterAtCountThreshold;
+    final int likeExemptThreshold = atFilterLikeExemptThreshold;
+
+    if (hasLikeExemptRule &&
+        likeExemptThreshold > 0 &&
+        reply.like.toInt() > likeExemptThreshold) {
+      return false;
+    }
+
+    ReplyNormalizedBody? normalizedBody;
+    ReplyNormalizedBody getNormalizedBody() =>
+        normalizedBody ??= normalizeReplyBody(reply);
+
+    if (hasPureAtRule) {
+      final ReplyNormalizedBody normalized = getNormalizedBody();
+      final bool isPureAtHit =
+          normalized.bodyWithoutMentions.isEmpty ||
+              _extractReplyEffectiveBody(normalized.bodyWithoutMentions).isEmpty;
+      if (isPureAtHit) {
+        return true;
+      }
+    }
+
+    if (hasAtCountRule &&
+        atCountThreshold > 0 &&
+        structuredAtCount >= atCountThreshold) {
+      return true;
+    }
+
+    if (hasBodyLengthRule) {
+      final ReplyNormalizedBody normalizedBody = getNormalizedBody();
+      if (normalizedBody.effectiveLength <= bodyLengthThreshold) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static String? checkBlockReason(ReplyInfo reply) {
+    // Strategy 1: Keyword filter
+    if (enableFilter && replyRegExp.hasMatch(reply.content.message)) {
+      return '关键词过滤：命中 $replyRegExp';
+    }
+
+    // Strategy 2: Goods (带货)
+    if (antiGoodsReply && needRemoveGoodGrpc(reply)) {
+      return '带货评论';
+    }
+
+    // Strategy 3: Level
+    final level = reply.member.level.toInt();
+    if (minLevelForReply > 0 && level < minLevelForReply) {
+      return '用户等级不足：Lv$level < Lv$minLevelForReply';
+    }
+
+    // Strategy 4: @ filter
+    if (enableAtFilter) {
+      final int structuredAtCount = _getUserAtCount(reply);
+      if (structuredAtCount > 0) {
+        final bool hasLikeExemptRule = enableAtFilterLikeExempt;
+        final int likeExemptThreshold = atFilterLikeExemptThreshold;
+
+        if (!(hasLikeExemptRule &&
+            likeExemptThreshold > 0 &&
+            reply.like.toInt() > likeExemptThreshold)) {
+          final bool hasPureAtRule = enableAtFilterPureAt;
+          final bool hasBodyLengthRule = enableAtFilterBodyLength;
+          final bool hasAtCountRule = enableAtFilterAtCount;
+          final int bodyLengthThreshold = atFilterBodyLengthThreshold;
+          final int atCountThreshold = atFilterAtCountThreshold;
+
+          if (hasPureAtRule) {
+            final ReplyNormalizedBody normalized = normalizeReplyBody(reply);
+            final bool isPureAtHit =
+                normalized.bodyWithoutMentions.isEmpty ||
+                    _extractReplyEffectiveBody(
+                        normalized.bodyWithoutMentions).isEmpty;
+            if (isPureAtHit) {
+              return '低质量@评论：纯@无正文';
+            }
+          }
+
+          if (hasAtCountRule &&
+              atCountThreshold > 0 &&
+              structuredAtCount >= atCountThreshold) {
+            return '低质量@评论：@数量过多($structuredAtCount)';
+          }
+
+          if (hasBodyLengthRule) {
+            final ReplyNormalizedBody normalizedBody = normalizeReplyBody(
+              reply,
+            );
+            if (normalizedBody.effectiveLength <= bodyLengthThreshold) {
+              return '低质量@评论：正文过短';
+            }
+          }
+        }
+      }
+    }
+    // Strategy 5: Local blacklist
+    final mid = reply.mid.toInt();
+    if (mid > 0 && GlobalData().blackMids.contains(mid)) {
+      return '黑名单用户';
+    }
+
+    return null;
+  }
+
+  static bool isClientBlocked(ReplyInfo reply) =>
+      _blockedReasons.containsKey(reply.id.toInt());
+
+  static String? getBlockReason(ReplyInfo reply) =>
+      _blockedReasons[reply.id.toInt()];
+
+  static String getBriefBlockReason(ReplyInfo reply) {
+    final detailed = _blockedReasons[reply.id.toInt()];
+    if (detailed == null) return '被屏蔽';
+    final colonIndex = detailed.indexOf('：');
+    if (colonIndex == -1) return detailed;
+    return detailed.substring(0, colonIndex);
+  }
+
+  static void clearBlockedReasons() => _blockedReasons.clear();
+
+  static void blockReply(ReplyInfo reply) {
+    _blockedReasons[reply.id.toInt()] = '黑名单用户';
+  }
+}
