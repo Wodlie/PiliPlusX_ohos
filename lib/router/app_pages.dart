@@ -70,6 +70,7 @@ import 'package:PiliPlus/pages/setting/privacy_setting.dart';
 import 'package:PiliPlus/pages/setting/recommend_setting.dart';
 import 'package:PiliPlus/pages/setting/style_setting.dart';
 import 'package:PiliPlus/pages/setting/video_setting.dart';
+import 'package:PiliPlus/pages/setting/block_filter_setting.dart';
 import 'package:PiliPlus/pages/setting/view.dart';
 import 'package:PiliPlus/pages/settings_search/view.dart';
 import 'package:PiliPlus/pages/space_setting/view.dart';
@@ -133,6 +134,8 @@ class Routes {
     GetPage(name: '/privacySetting', page: () => const PrivacySetting()),
     // 其它设置
     GetPage(name: '/extraSetting', page: () => const ExtraSetting()),
+    // 屏蔽与过滤
+    GetPage(name: '/blockFilterSetting', page: () => const BlockFilterSetting()),
     // @评论过滤
     GetPage(name: '/atFilter', page: () => const AtFilterPage()),
     // 屏蔽图片设置
