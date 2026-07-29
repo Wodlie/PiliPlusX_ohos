@@ -14,6 +14,7 @@ import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/accounts/request_identity_adapter.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -796,11 +797,11 @@ class LoginPageController extends GetxController
     final colorScheme = ColorScheme.of(context);
     final selectAccount = List.of(Accounts.accountMode);
     final useDisplayName = Pref.accountDisplayName;
-    final options = {
+    final Map<Account, String> options = {
       AnonymousAccount(): '0',
-      ...Accounts.account.toMap().map(
-        (k, v) => MapEntry(
-          v,
+      ...Accounts.account.toMap().map<Account, String>(
+        (k, v) => MapEntry<Account, String>(
+          v as Account,
           useDisplayName ? Pref.getAccountDisplayName(v.mid) : k as String,
         ),
       ),

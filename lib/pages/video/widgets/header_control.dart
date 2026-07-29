@@ -22,6 +22,7 @@ import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/models_new/video/video_play_info/subtitle.dart';
+import 'package:PiliPlus/utils/subtitle_utils.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart';
 import 'package:PiliPlus/pages/danmaku/danmaku_model.dart';
 import 'package:PiliPlus/pages/setting/widgets/popup_item.dart';
@@ -692,7 +693,7 @@ class HeaderControlState extends State<HeaderControl>
                             if (!mounted) return;
                             String sub = buffer.toString();
                             sub = await compute<List, String>(
-                              VideoHttp.processList,
+                              SubtitleUtils.json2Vtt,
                               jsonDecode(sub)['body'],
                             );
                             if (!mounted) return;

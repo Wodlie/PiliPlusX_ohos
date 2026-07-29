@@ -48,7 +48,7 @@ class DynamicsTabController
       DynamicsHttp.followDynamic(
         offset: offset,
         type: dynamicsType,
-        mid: dynamicsController.currentMid >= 0 ? dynamicsController.currentMid : null,
+        hostMid: dynamicsController.currentMid >= 0 ? dynamicsController.currentMid : null,
         tempBannedList: dynamicsController.tempBannedList,
       );
 
