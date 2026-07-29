@@ -7,7 +7,6 @@ import 'package:PiliPlus/http/api.dart';
 import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
-import 'package:PiliPlus/http/login.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/home/rcmd/result.dart';
@@ -32,7 +31,11 @@ import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/accounts/app_device_profile.dart';
 import 'package:PiliPlus/utils/accounts/request_identity_adapter.dart';
+import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
+import 'package:flutter/foundation.dart' show compute, visibleForTesting;
+import 'package:flutter/material.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
@@ -40,10 +43,10 @@ import 'package:PiliPlus/utils/recommend_filter.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:PiliPlus/utils/subtitle_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/wbi_sign.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 import 'package:protobuf/protobuf.dart';
 
 /// view层根据 status 判断渲染逻辑
@@ -101,6 +104,13 @@ abstract final class VideoHttp {
     };
   }
 
+  static AccountType _accountTypeForRelationAct(int act) {
+    return switch (act) {
+      5 || 6 => AccountType.blacklist,
+      _ => AccountType.main,
+    };
+  }
+
   // 首页推荐视频
   static Future<LoadingState<List<RcmdVideoItemModel>>> rcmdVideoList({
     required int ps,
@@ -141,54 +151,13 @@ abstract final class VideoHttp {
   static Future<LoadingState<List<RcmdVideoItemAppModel>>> rcmdVideoListApp({
     required int freshIdx,
   }) async {
-    final params = {
-      'build': 2001100,
-      'c_locale': 'zh_CN',
-      'channel': 'master',
-      'column': 4,
-      'device': 'pad',
-      'device_name': 'android',
-      'device_type': 0,
-      'disable_rcmd': 0,
-      'flush': 5,
-      'fnval': 976,
-      'fnver': 0,
-      'force_host': 2, //使用https
-      'fourk': 1,
-      'guidance': 0,
-      'https_url_req': 0,
-      'idx': freshIdx,
-      'mobi_app': 'android_hd',
-      'network': 'wifi',
-      'platform': 'android',
-      'player_net': 1,
-      'pull': freshIdx == 0 ? 'true' : 'false',
-      'qn': 32,
-      'recsys_mode': 0,
-      's_locale': 'zh_CN',
-      'splash_id': '',
-      'statistics': Constants.statistics,
-      'voice_balance': 0,
-    };
+    final account = Accounts.get(AccountType.recommend);
+    final params = recommendAppQueryParameters(freshIdx: freshIdx);
     final res = await Request().get(
       Api.recommendListApp,
       queryParameters: params,
       options: Options(
-        headers: {
-          'buvid': LoginHttp.buvid,
-          'fp_local':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'fp_remote':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'session_id': '11111111',
-          'env': 'prod',
-          'app-key': 'android_hd',
-          'User-Agent': Constants.userAgent,
-          'x-bili-trace-id': Constants.traceId,
-          'x-bili-aurora-eid': '',
-          'x-bili-aurora-zone': '',
-          'bili-http-engine': 'cronet',
-        },
+        headers: recommendAppIdentityHeaders(account),
       ),
     );
     if (res.data['code'] == 0) {
@@ -261,7 +230,10 @@ abstract final class VideoHttp {
     required bool tryLook,
     required VideoType videoType,
     String? language,
+    bool voiceBalance = false,
   }) async {
+    final dmImgStr = Utils.base64EncodeRandomString(16, 64);
+    final dmCoverImgStr = Utils.base64EncodeRandomString(32, 128);
     final params = await WbiSign.makSign({
       'avid': ?avid,
       'bvid': ?bvid,
@@ -273,12 +245,16 @@ abstract final class VideoHttp {
       'fnval': 4048,
       'fourk': 1,
       'fnver': 0,
-      'voice_balance': 1,
+      'voice_balance': voiceBalance ? 1 : 0,
       'gaia_source': 'pre-load',
       'isGaiaAvoided': true,
       'web_location': 1315873,
       // 免登录查看1080p
       if (tryLook) 'try_look': 1,
+      'dm_img_list': '[]',
+      'dm_img_str': dmImgStr,
+      'dm_cover_img_str': dmCoverImgStr,
+      'dm_img_inter': '{"ds":[],"wh":[0,0,0],"of":[0,0,0]}',
       'cur_language': ?language,
     });
 
@@ -291,22 +267,22 @@ abstract final class VideoHttp {
           case VideoType.ugc:
             data = PlayUrlModel.fromJson(res.data['data']);
             break;
-          case VideoType.pugv:
-            final result = res.data['data'];
-            data = PlayUrlModel.fromJson(result)
-              ..lastPlayTime =
-                  result?['play_view_business_info']?['user_status']?['watch_progress']?['current_watch_progress'];
-            break;
           case VideoType.pgc:
             final result = res.data['result'];
             data = PlayUrlModel.fromJson(result['video_info'])
               ..lastPlayTime =
                   result?['play_view_business_info']?['user_status']?['watch_progress']?['current_watch_progress'];
             break;
+          case VideoType.pugv:
+            final result = res.data['data'];
+            data = PlayUrlModel.fromJson(result)
+              ..lastPlayTime =
+                  result?['play_view_business_info']?['user_status']?['watch_progress']?['current_watch_progress'];
+            break;
         }
         return Success(data);
       } else if (epid != null && videoType == VideoType.ugc) {
-        return videoUrl(
+        return await videoUrl(
           avid: avid,
           bvid: bvid,
           cid: cid,
@@ -316,8 +292,80 @@ abstract final class VideoHttp {
           tryLook: tryLook,
           videoType: VideoType.pgc,
         );
+      } else if (bvid != null && IdUtils.bvRegexExact.hasMatch(bvid)) {
+        // 若bvid符合有效格式, 弹窗
+        SmartDialog.show(
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('提示'),
+              content: const Text('视频可能换源，是否跳转到新地址？'),
+              actions: [
+                TextButton(
+                  onPressed: () => SmartDialog.dismiss(),
+                  child: Text(
+                    '取消',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    SmartDialog.dismiss();
+                    PiliScheme.videoPush(null, bvid, showDialog: false);
+                  },
+                  child: const Text('确定'),
+                ),
+              ],
+            );
+          },
+        );
       }
       return Error(_parseVideoErr(res.data['code'], res.data['message']));
+    } catch (e, s) {
+      return Error('$e\n\n$s');
+    }
+  }
+
+  static Future<LoadingState<String>> ugcSummaryMp4Url({
+    required String bvid,
+    required int cid,
+  }) async {
+    final params = await WbiSign.makSign({
+      'bvid': bvid,
+      'cid': cid,
+      'qn': 16,
+      'fnval': 1,
+      'fnver': 0,
+      'platform': 'html5',
+    });
+
+    try {
+      final res = await Request().get(Api.ugcUrl, queryParameters: params);
+      if (res.data['code'] != 0) {
+        return Error(_parseVideoErr(res.data['code'], res.data['message']));
+      }
+
+      final PlayUrlModel data = PlayUrlModel.fromJson(res.data['data']);
+      final Durl? firstDurl = data.durl?.firstOrNull;
+      if (firstDurl == null) {
+        return const Error('未获取到 bilibili 360P MP4 durl');
+      }
+
+      String? mediaUrl;
+      for (final item in firstDurl.playUrls) {
+        final Uri? uri = Uri.tryParse(item);
+        if (uri != null &&
+            (uri.scheme == 'http' || uri.scheme == 'https') &&
+            uri.host.isNotEmpty) {
+          mediaUrl = item;
+          break;
+        }
+      }
+      if (mediaUrl == null) {
+        return const Error('bilibili 360P MP4 durl 无有效 URL');
+      }
+      return Success(mediaUrl);
     } catch (e, s) {
       return Error('$e\n\n$s');
     }
@@ -603,12 +651,15 @@ abstract final class VideoHttp {
         'at_name_to_mid': jsonEncode(atNameToMid), // {"name":uid}
       if (pictures != null) 'pictures': jsonEncode(pictures),
       if (syncToDynamic) 'sync_to_dynamic': 1,
-      'csrf': Accounts.main.csrf,
+      'csrf': Accounts.reply.csrf,
     };
     final res = await Request().post(
       Api.replyAdd,
       data: data,
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': Accounts.reply},
+      ),
     );
     if (res.data['code'] == 0) {
       try {
@@ -641,9 +692,12 @@ abstract final class VideoHttp {
         'type': type, //type.index
         'oid': oid,
         'rpid': rpid,
-        'csrf': Accounts.main.csrf,
+        'csrf': Accounts.reply.csrf,
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': Accounts.reply},
+      ),
     );
     if (res.data['code'] == 0) {
       GStorage.reply?.delete(rpid.toString());
@@ -659,12 +713,17 @@ abstract final class VideoHttp {
     required int act,
     required int reSrc,
   }) async {
+    final accountType = _accountTypeForRelationAct(act);
+    final account = Accounts.get(accountType);
+    final identity = RequestIdentityAdapter.fromAccount(
+      account: account,
+      userAgent: BrowserUa.pc,
+    );
     final res = await Request().post(
       Api.relationMod,
       queryParameters: {
         'statistics': '{"appId":100,"platform":5}',
-        'x-bili-device-req-json':
-            '{"platform":"web","device":"pc","spmid":"333.1387"}',
+        ...identity.webDeviceQueryFields(spmid: '333.1387'),
       },
       data: {
         'fid': mid,
@@ -675,12 +734,13 @@ abstract final class VideoHttp {
         'extend_content': jsonEncode({
           "entity": "user",
           "entity_id": mid,
-          'fp': BrowserUa.pc,
+          'fp': identity.fpLocal,
         }),
-        'csrf': Accounts.main.csrf,
+        'csrf': account.csrf,
       },
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': account},
         headers: {
           'origin': 'https://space.bilibili.com',
           'referer': 'https://space.bilibili.com/$mid/dynamic',
@@ -856,50 +916,6 @@ abstract final class VideoHttp {
     }
   }
 
-  static Future<LoadingState<String>> ugcSummaryMp4Url({
-    required String bvid,
-    required int cid,
-  }) async {
-    final params = await WbiSign.makSign({
-      'bvid': bvid,
-      'cid': cid,
-      'qn': 16,
-      'fnval': 1,
-      'fnver': 0,
-      'platform': 'html5',
-    });
-
-    try {
-      final res = await Request().get(Api.ugcUrl, queryParameters: params);
-      if (res.data['code'] != 0) {
-        return Error(_parseVideoErr(res.data['code'], res.data['message']));
-      }
-
-      final PlayUrlModel data = PlayUrlModel.fromJson(res.data['data']);
-      final Durl? firstDurl = data.durl?.firstOrNull;
-      if (firstDurl == null) {
-        return const Error('未获取到 bilibili 360P MP4 durl');
-      }
-
-      String? mediaUrl;
-      for (final item in firstDurl.playUrls) {
-        final Uri? uri = Uri.tryParse(item);
-        if (uri != null &&
-            (uri.scheme == 'http' || uri.scheme == 'https') &&
-            uri.host.isNotEmpty) {
-          mediaUrl = item;
-          break;
-        }
-      }
-      if (mediaUrl == null) {
-        return const Error('bilibili 360P MP4 durl 无有效 URL');
-      }
-      return Success(mediaUrl);
-    } catch (e, s) {
-      return Error('$e\n\n$s');
-    }
-  }
-
   static Future<LoadingState<PlayInfoData>> playInfo({
     String? aid,
     String? bvid,
@@ -925,33 +941,20 @@ abstract final class VideoHttp {
     }
   }
 
-  static String _subtitleTimecode(num seconds) {
-    int h = seconds ~/ 3600;
-    seconds %= 3600;
-    int m = seconds ~/ 60;
-    seconds %= 60;
-    String sms = seconds.toStringAsFixed(3).padLeft(6, '0');
-    return h == 0
-        ? "${m.toString().padLeft(2, '0')}:$sms"
-        : "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:$sms";
-  }
-
-  static String processList(List list) {
-    final sb = StringBuffer('WEBVTT\n\n')
-      ..writeAll(
-        list.map(
-          (item) =>
-              '${item?['sid'] ?? 0}\n${_subtitleTimecode(item['from'])} --> ${_subtitleTimecode(item['to'])}\n${item['content'].trim()}',
-        ),
-        '\n\n',
-      );
-    return sb.toString();
-  }
-
-  static Future<String?> vttSubtitles(String subtitleUrl) async {
+  static Future<String?> vttSubtitles(
+    String subtitleUrl, {
+    SubtitleFormat format = SubtitleFormat.vtt,
+  }) async {
     final res = await Request().get("https:$subtitleUrl");
     if (res.data?['body'] case List list) {
-      return compute<List, String>(processList, list);
+      switch (format) {
+        case SubtitleFormat.json:
+          throw UnimplementedError();
+        case SubtitleFormat.vtt:
+          return compute<List, String>(SubtitleUtils.json2Vtt, list);
+        case SubtitleFormat.srt:
+          return compute<List, String>(SubtitleUtils.json2Srt, list);
+      }
     }
     return null;
   }

@@ -3,7 +3,6 @@ import 'package:PiliPlus/http/api.dart';
 import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
-import 'package:PiliPlus/http/login.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/models/common/live/live_contribution_rank_type.dart';
 import 'package:PiliPlus/models/common/live/live_search_type.dart';
@@ -151,7 +150,11 @@ abstract final class LiveHttp {
       }),
     );
     if (res.data['code'] == 0) {
-      return Success(RoomPlayInfoData.fromJson(res.data['data']));
+      try {
+        return Success(RoomPlayInfoData.fromJson(res.data['data']));
+      } catch (e) {
+        return Error(e.toString());
+      }
     } else {
       return Error(res.data['message']);
     }
@@ -212,7 +215,11 @@ abstract final class LiveHttp {
       }),
     );
     if (res.data['code'] == 0) {
-      return Success(LiveDmInfoData.fromJson(res.data['data']));
+      try {
+        return Success(LiveDmInfoData.fromJson(res.data['data']));
+      } catch (e) {
+        return Error(e.toString());
+      }
     } else {
       return Error(res.data['message']);
     }
@@ -239,49 +246,18 @@ abstract final class LiveHttp {
     required int pn,
     bool moduleSelect = false,
   }) async {
-    final params = {
-      'access_key': ?recommend.accessKey,
-      'channel': 'master',
-      'actionKey': 'appkey',
-      'build': 8430300,
-      'version': '8.43.0',
-      'c_locale': 'zh_CN',
-      'device': 'android',
-      'device_name': 'android',
-      'device_type': 0,
-      'fnval': 912,
-      'disable_rcmd': 0,
-      'https_url_req': 1,
-      if (moduleSelect) 'module_select': 1,
-      'mobi_app': 'android',
-      'network': 'wifi',
-      'page': pn,
-      'platform': 'android',
-      if (recommend.isLogin) 'relation_page': 1,
-      's_locale': 'zh_CN',
-      'scale': 2,
-      'statistics': Constants.statisticsApp,
-    };
+    final account = recommend;
+    final params = liveFeedIndexQueryParameters(
+      account: account,
+      pn: pn,
+      moduleSelect: moduleSelect,
+    );
     AppSign.appSign(params);
     final res = await Request().get(
       Api.liveFeedIndex,
       queryParameters: params,
       options: Options(
-        headers: {
-          'buvid': LoginHttp.buvid,
-          'fp_local':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'fp_remote':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'session_id': '11111111',
-          'env': 'prod',
-          'app-key': 'android',
-          'User-Agent': Constants.userAgentApp,
-          'x-bili-trace-id': Constants.traceId,
-          'x-bili-aurora-eid': '',
-          'x-bili-aurora-zone': '',
-          'bili-http-engine': 'cronet',
-        },
+        headers: appIdentityHeaders(account),
       ),
     );
     if (res.data['code'] == 0) {
@@ -314,54 +290,41 @@ abstract final class LiveHttp {
     required Object? parentAreaId,
     String? sortType,
   }) async {
+    final account = recommend;
     final params = {
-      'access_key': ?recommend.accessKey,
+      'access_key': ?account.accessKey,
       'actionKey': 'appkey',
-      'channel': 'master',
+      'channel': _appProfile.channel,
       'area_id': ?areaId,
       'parent_area_id': ?parentAreaId,
-      'build': 8430300,
-      'version': '8.43.0',
+      'build': _appProfile.build,
+      'version': _appProfile.versionName,
       'c_locale': 'zh_CN',
-      'device': 'android',
-      'device_name': 'android',
+      'device': _appProfile.requestDevice,
+      'device_name': _appProfile.deviceName,
       'device_type': 0,
       'fnval': 912,
       'disable_rcmd': 0,
       'https_url_req': 1,
-      'mobi_app': 'android',
+      'mobi_app': _appProfile.mobiApp,
       'module_select': 0,
       'network': 'wifi',
       'page': pn,
       'page_size': 20,
-      'platform': 'android',
+      'platform': _appProfile.platform,
       'qn': 0,
       'sort_type': ?sortType,
       'tag_version': 1,
       's_locale': 'zh_CN',
       'scale': 2,
-      'statistics': Constants.statisticsApp,
+      'statistics': _appProfile.statistics,
     };
     AppSign.appSign(params);
     final res = await Request().get(
       Api.liveSecondList,
       queryParameters: params,
       options: Options(
-        headers: {
-          'buvid': LoginHttp.buvid,
-          'fp_local':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'fp_remote':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'session_id': '11111111',
-          'env': 'prod',
-          'app-key': 'android',
-          'User-Agent': Constants.userAgentApp,
-          'x-bili-trace-id': Constants.traceId,
-          'x-bili-aurora-eid': '',
-          'x-bili-aurora-zone': '',
-          'bili-http-engine': 'cronet',
-        },
+        headers: appIdentityHeaders(account),
       ),
     );
     if (res.data['code'] == 0) {
@@ -375,16 +338,16 @@ abstract final class LiveHttp {
     final params = {
       'access_key': ?recommend.accessKey,
       'actionKey': 'appkey',
-      'build': 8430300,
-      'channel': 'master',
-      'version': '8.43.0',
+      'build': _appProfile.build,
+      'channel': _appProfile.channel,
+      'version': _appProfile.versionName,
       'c_locale': 'zh_CN',
-      'device': 'android',
+      'device': _appProfile.requestDevice,
       'disable_rcmd': 0,
-      'mobi_app': 'android',
-      'platform': 'android',
+      'mobi_app': _appProfile.mobiApp,
+      'platform': _appProfile.platform,
       's_locale': 'zh_CN',
-      'statistics': Constants.statisticsApp,
+      'statistics': _appProfile.statistics,
     };
     AppSign.appSign(params);
     final res = await Request().get(
@@ -406,16 +369,16 @@ abstract final class LiveHttp {
     final params = {
       'access_key': ?Accounts.main.accessKey,
       'actionKey': 'appkey',
-      'build': 8430300,
-      'channel': 'master',
-      'version': '8.43.0',
+      'build': _appProfile.build,
+      'channel': _appProfile.channel,
+      'version': _appProfile.versionName,
       'c_locale': 'zh_CN',
-      'device': 'android',
+      'device': _appProfile.requestDevice,
       'disable_rcmd': 0,
-      'mobi_app': 'android',
-      'platform': 'android',
+      'mobi_app': _appProfile.mobiApp,
+      'platform': _appProfile.platform,
       's_locale': 'zh_CN',
-      'statistics': Constants.statisticsApp,
+      'statistics': _appProfile.statistics,
     };
     AppSign.appSign(params);
     final res = await Request().get(
@@ -442,16 +405,16 @@ abstract final class LiveHttp {
       'tags': ids,
       'access_key': Accounts.main.accessKey,
       'actionKey': 'appkey',
-      'build': 8430300,
-      'channel': 'master',
-      'version': '8.43.0',
+      'build': _appProfile.build,
+      'channel': _appProfile.channel,
+      'version': _appProfile.versionName,
       'c_locale': 'zh_CN',
-      'device': 'android',
+      'device': _appProfile.requestDevice,
       'disable_rcmd': 0,
-      'mobi_app': 'android',
-      'platform': 'android',
+      'mobi_app': _appProfile.mobiApp,
+      'platform': _appProfile.platform,
       's_locale': 'zh_CN',
-      'statistics': Constants.statisticsApp,
+      'statistics': _appProfile.statistics,
     };
     AppSign.appSign(data);
     final res = await Request().post(
@@ -473,19 +436,19 @@ abstract final class LiveHttp {
     final params = {
       'access_key': ?recommend.accessKey,
       'actionKey': 'appkey',
-      'build': 8430300,
-      'channel': 'master',
-      'version': '8.43.0',
+      'build': _appProfile.build,
+      'channel': _appProfile.channel,
+      'version': _appProfile.versionName,
       'c_locale': 'zh_CN',
-      'device': 'android',
+      'device': _appProfile.requestDevice,
       'disable_rcmd': 0,
       'need_entrance': 1,
       'parent_id': parentid,
       'source_id': 2,
-      'mobi_app': 'android',
-      'platform': 'android',
+      'mobi_app': _appProfile.mobiApp,
+      'platform': _appProfile.platform,
       's_locale': 'zh_CN',
-      'statistics': Constants.statisticsApp,
+      'statistics': _appProfile.statistics,
     };
     AppSign.appSign(params);
     final res = await Request().get(
@@ -509,19 +472,19 @@ abstract final class LiveHttp {
     final params = {
       'access_key': ?recommend.accessKey,
       'actionKey': 'appkey',
-      'build': 8430300,
-      'channel': 'master',
-      'version': '8.43.0',
+      'build': _appProfile.build,
+      'channel': _appProfile.channel,
+      'version': _appProfile.versionName,
       'c_locale': 'zh_CN',
-      'device': 'android',
+      'device': _appProfile.requestDevice,
       'page': page,
       'pagesize': 30,
       'keyword': keyword,
       'disable_rcmd': 0,
-      'mobi_app': 'android',
-      'platform': 'android',
+      'mobi_app': _appProfile.mobiApp,
+      'platform': _appProfile.platform,
       's_locale': 'zh_CN',
-      'statistics': Constants.statisticsApp,
+      'statistics': _appProfile.statistics,
       'type': type.name,
     };
     AppSign.appSign(params);
@@ -802,6 +765,43 @@ abstract final class LiveHttp {
     );
     if (res.data['code'] == 0) {
       return Success(MedalWallData.fromJson(res.data['data']));
+    } else {
+      return Error(res.data['message']);
+    }
+  }
+
+  static Future<LoadingState<void>> liveFeedback(
+    Object roomId,
+    Object id,
+    String type, {
+    int page = 1,
+  }) async {
+    final params = {
+      'access_key': ?recommend.accessKey,
+      'actionKey': 'appkey',
+      'build': _appProfile.build,
+      'channel': _appProfile.channel,
+      'c_locale': 'zh_CN',
+      'device': _appProfile.requestDevice,
+      'disable_rcmd': 0,
+      'mobi_app': _appProfile.mobiApp,
+      'platform': _appProfile.platform,
+      's_locale': 'zh_CN',
+      'statistics': _appProfile.statistics,
+      'version': _appProfile.versionName,
+      'id': id,
+      'id_type': type,
+      'room_id': roomId,
+      'type': 'dislike',
+      'page': page,
+    };
+    AppSign.appSign(params);
+    final res = await Request().get(
+      Api.liveFeedback,
+      queryParameters: params,
+    );
+    if (res.data['code'] == 0) {
+      return const Success(null);
     } else {
       return Error(res.data['message']);
     }
