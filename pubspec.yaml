@@ -115,14 +115,17 @@ dependencies:
   encrypt: ^5.0.3
 
   # 视频播放器
+  # HarmonyOS 必须使用 feat-ohos：该分支包含 OHOS surface/texture 初始化修复。
   media_kit: # overridden
   media_kit_video:
     git:
-      url: https://github.com/Predidit/media-kit.git
+      url: https://github.com/cnoim/media-kit.git
+      ref: feat-ohos
       path: ./media_kit_video
   media_kit_libs_video:
     git:
-      url: https://github.com/Predidit/media-kit.git
+      url: https://github.com/cnoim/media-kit.git
+      ref: feat-ohos
       path: ./libs/universal/media_kit_libs_video
 
   # 媒体通知
@@ -308,31 +311,36 @@ dependency_overrides:
   rxdart: ^0.28.0
   media_kit:
     git:
-      url: https://github.com/Predidit/media-kit.git
+      url: https://github.com/cnoim/media-kit.git
+      ref: feat-ohos
       path: ./media_kit
   media_kit_libs_linux:
     git:
-      url: https://github.com/Predidit/media-kit.git
+      url: https://github.com/cnoim/media-kit.git
+      ref: feat-ohos
       path: ./libs/linux/media_kit_libs_linux
   media_kit_libs_ios_video:
     git:
-      url: https://github.com/Predidit/media-kit.git
+      url: https://github.com/cnoim/media-kit.git
+      ref: feat-ohos
       path: ./libs/ios/media_kit_libs_ios_video
   media_kit_libs_macos_video:
     git:
-      url: https://github.com/Predidit/media-kit.git
+      url: https://github.com/cnoim/media-kit.git
+      ref: feat-ohos
       path: ./libs/macos/media_kit_libs_macos_video
   media_kit_libs_ohos:
     git:
-      url: https://github.com/Predidit/media-kit.git
+      url: https://github.com/cnoim/media-kit.git
+      ref: feat-ohos
       path: ./libs/ohos/media_kit_libs_ohos
   # media_kit_libs_android_video:
   #   git:
-  #     url: https://github.com/Predidit/media-kit.git
+  #     url: https://github.com/cnoim/media-kit.git
   #     path: ./libs/android/media_kit_libs_android_video
   # media_kit_libs_windows_video:
   #   git:
-  #     url: https://github.com/Predidit/media-kit.git
+  #     url: https://github.com/cnoim/media-kit.git
   #     path: ./libs/windows/media_kit_libs_windows_video
 
   # 上游指定的media_kit
