@@ -206,48 +206,6 @@ class SwitchModel extends SettingsModel {
   );
 }
 
-class SwitchModel extends SettingsModel {
-  @override
-  final String title;
-  final String setKey;
-  final bool defaultVal;
-  final ValueChanged<bool>? onChanged;
-  final bool needReboot;
-  final void Function(BuildContext context)? onTap;
-
-  const SwitchModel({
-    super.subtitle,
-    super.leading,
-    super.contentPadding,
-    super.titleStyle,
-    required this.title,
-    required this.setKey,
-    this.defaultVal = false,
-    this.onChanged,
-    this.needReboot = false,
-    this.onTap,
-  });
-
-  @override
-  String get effectiveTitle => title;
-  @override
-  String? get effectiveSubtitle => subtitle;
-
-  @override
-  Widget get widget => SetSwitchItem(
-    title: title,
-    subtitle: subtitle,
-    setKey: setKey,
-    defaultVal: defaultVal,
-    onChanged: onChanged,
-    needReboot: needReboot,
-    leading: leading,
-    onTap: onTap,
-    contentPadding: contentPadding,
-    titleStyle: titleStyle,
-  );
-}
-
 SettingsModel getBanWordModel({
   required String title,
   required String key,
