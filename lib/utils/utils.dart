@@ -136,6 +136,9 @@ abstract final class Utils {
     (_) => _secureRandom.nextInt(256),
   );
 
+  static String generateSecureRandomString(int length) =>
+      base64.encode(generateSecureRandomBytes(length));
+
   static String generateRandomString(int length) {
     const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
 
