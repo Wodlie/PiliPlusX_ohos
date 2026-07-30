@@ -1730,7 +1730,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
               top: -1,
               bottom: -1,
               child: ClipRect(
-                child: RepaintBoundary(
+                child: _buildControlBarsLayer(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -2026,12 +2026,22 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     onTap: plPlayerController.refreshPlayer,
                     child: Container(
                       padding: const EdgeInsets.all(20),
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [Colors.black26, Colors.transparent],
-                        ),
-                      ),
+                      decoration: OS.isHarmony
+                          ? const BoxDecoration(
+                              // OHOS/Impeller 对视频 Surface 上的透明径向
+                              // 渐变可能错误地扩展为大块灰白离屏层。
+                              shape: BoxShape.circle,
+                              color: Color(0xCC000000),
+                            )
+                          : const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  Colors.black26,
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -2087,14 +2097,8 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                           children: [
                             if (mountSeekBackwardButton)
                               Expanded(
-                                child: TweenAnimationBuilder<double>(
-                                  tween: Tween<double>(begin: 0.0, end: 1.0),
-                                  duration: const Duration(milliseconds: 500),
-                                  builder: (context, value, child) => Opacity(
-                                    opacity: value,
-                                    child: child,
-                                  ),
-                                  child: BackwardSeekIndicator(
+                                child: _buildSeekIndicatorTransition(
+                                  BackwardSeekIndicator(
                                     duration: plPlayerController
                                         .fastForBackwardDuration,
                                     onSubmitted: (Duration value) {
@@ -2108,14 +2112,8 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                             const Spacer(flex: 2),
                             if (mountSeekForwardButton)
                               Expanded(
-                                child: TweenAnimationBuilder<double>(
-                                  tween: Tween<double>(begin: 0.0, end: 1.0),
-                                  duration: const Duration(milliseconds: 500),
-                                  builder: (context, value, child) => Opacity(
-                                    opacity: value,
-                                    child: child,
-                                  ),
-                                  child: ForwardSeekIndicator(
+                                child: _buildSeekIndicatorTransition(
+                                  ForwardSeekIndicator(
                                     duration: plPlayerController
                                         .fastForBackwardDuration,
                                     onSubmitted: (Duration value) {
@@ -2150,6 +2148,27 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       );
     }
     return child;
+  }
+
+  Widget _buildControlBarsLayer({required Widget child}) {
+    // RepaintBoundary 会把整组控制栏缓存为独立图层。HarmonyOS 的视频
+    // Surface 与该透明缓存层叠加异常时，可能暴露缓存纹理的矩形边界。
+    return OS.isHarmony ? child : RepaintBoundary(child: child);
+  }
+
+  Widget _buildSeekIndicatorTransition(Widget child) {
+    // Opacity 会创建 saveLayer。OHOS 在该 saveLayer 与原生视频 Surface
+    // 叠加时可能把整个图层边界显示为灰白矩形，因此直接显示提示组件。
+    if (OS.isHarmony) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 500),
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: child,
+      ),
+      child: child,
+    );
   }
 
   Widget get _videoWidget {
