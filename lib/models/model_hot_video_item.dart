@@ -14,9 +14,6 @@ class HotVideoItemModel extends HorizontalVideoModel with MultiSelectData {
   int? state;
   String? firstFrame;
   String? pubLocation;
-  bool? isCharging;
-  int? isCooperation;
-  String? pgcLabel;
 
   HotVideoItemModel.fromJson(Map<String, dynamic> json) {
     aid = json["aid"];
@@ -42,9 +39,6 @@ class HotVideoItemModel extends HorizontalVideoModel with MultiSelectData {
     pubLocation = json["pub_location"];
     redirectUrl = json['redirect_url'];
     progress = json['progress'];
-    isCharging = json['charging_pay']?['level'] != null;
-    isCooperation = json['rights']?['is_cooperation'];
-    pgcLabel = json['pgc_label'];
     if (json['charging_pay']?['level'] != null) {
       badge = '充电专属';
     } else if (json['rights']?['is_cooperation'] == 1) {

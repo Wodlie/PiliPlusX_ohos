@@ -5,8 +5,6 @@ import 'dart:io';
 import 'package:PiliPlus/http/api.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
-import 'package:PiliPlus/http/custom_host_interceptor.dart';
-import 'package:PiliPlus/http/hk_api_retry_interceptor.dart';
 import 'package:PiliPlus/http/retry_interceptor.dart';
 import 'package:PiliPlus/http/user.dart';
 import 'package:PiliPlus/utils/accounts.dart';
@@ -15,7 +13,6 @@ import 'package:PiliPlus/utils/accounts/account_manager/account_mgr.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:PiliPlus/utils/connectivity_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:archive/archive.dart';
 import 'package:brotli/brotli.dart';
@@ -23,7 +20,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:dio_http2_adapter/dio_http2_adapter.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, listEquals;
+import 'package:flutter/foundation.dart' show kDebugMode;
 
 class Request {
   static const _gzipDecoder = GZipDecoder();
@@ -63,14 +60,15 @@ class Request {
   }
 
   static Future<void> buvidActive(Account account) async {
+    // 这样线程不安全, 但仍按预期进行
     if (account.activated) return;
+    account.activated = true;
     try {
       // final html = await Request().get(Api.dynamicSpmPrefix,
       //     options: Options(extra: {'account': account}));
       // final String spmPrefix = _spmPrefixExp.firstMatch(html.data)!.group(1)!;
-      final randomPngBytes = Utils.generateSecureRandomBytes(36);
       final String randPngEnd = base64.encode([
-        ...randomPngBytes.take(32),
+        ...Iterable<int>.generate(32, (_) => Utils.random.nextInt(256)),
         0,
         0,
         0,
@@ -79,7 +77,7 @@ class Request {
         69,
         78,
         68,
-        ...randomPngBytes.skip(32),
+        ...Iterable<int>.generate(4, (_) => Utils.random.nextInt(256)),
       ]);
 
       final jsonData = json.encode({
@@ -91,11 +89,7 @@ class Request {
         },
       });
 
-      // Use dio.post directly so that DioException (non-2xx, network
-      // error) propagates out of the try block and keeps activated=false.
-      // Request().post() wraps DioException into a synthetic Response,
-      // which would prevent the catch from ever firing for common errors.
-      await dio.post(
+      await Request().post(
         Api.activateBuvidApi,
         data: {'payload': jsonData},
         options: Options(
@@ -103,12 +97,7 @@ class Request {
           contentType: Headers.jsonContentType,
         ),
       );
-      // Only mark activated after the request completes without error.
-      account.activated = true;
-    } catch (_) {
-      // Keep activated = false on failure so the account remains
-      // retryable on the next buvidActive call.
-    }
+    } catch (_) {}
   }
 
   static Dio _cloneHttp11Dio() {
@@ -129,8 +118,9 @@ class Request {
 
   static Timer? _networkChangeDebounce;
 
-  static void _onConnectivityChanged(List<ConnectivityResult> result) {
-    if (listEquals(result, const [ConnectivityResult.none])) {
+  // connectivity_plus 5.x 回调单值（鸿蒙适配版本），非上游 7.x 的 List
+  static void _onConnectivityChanged(ConnectivityResult result) {
+    if (result == ConnectivityResult.none) {
       return;
     }
     _networkChangeDebounce?.cancel();
@@ -141,9 +131,7 @@ class Request {
   }
 
   static void _watchConnectivity() {
-    ConnectivityUtils.onConnectivityChanged
-        .skip(1)
-        .listen(_onConnectivityChanged);
+    Connectivity().onConnectivityChanged.skip(1).listen(_onConnectivityChanged);
   }
 
   static (IOHttpClientAdapter, ConnectionManager?) _createPool() {
@@ -222,7 +210,7 @@ class Request {
       receiveTimeout: const Duration(milliseconds: 10000),
       //Http请求头.
       headers: {
-        'user-agent': 'grpc-go/1.61.1', // Http2Adapter不会自动添加标头
+        'user-agent': 'Dart/3.6 (dart:io)', // Http2Adapter不会自动添加标头
         if (!_enableHttp2) 'connection': 'keep-alive',
         'accept-encoding': 'br,gzip',
       },
@@ -243,12 +231,6 @@ class Request {
         RetryInterceptor(dio, Pref.retryCount, Pref.retryDelay),
       );
     }
-
-    // 自定义API Host
-    dio.interceptors.add(CustomHostInterceptor());
-
-    // 港澳台支持
-    dio.interceptors.add(HkApiRetryInterceptor());
 
     // 日志拦截器 输出请求、响应内容
     if (kDebugMode) {

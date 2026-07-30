@@ -71,14 +71,16 @@ class _FollowTagSortPageState extends State<FollowTagSortPage>
     );
   }
 
-  void onReorderItem(int oldIndex, int newIndex) {
+  void onReorder(int oldIndex, int newIndex) {
+    // Flutter 3.41 的 onReorder 回调需自行修正 newIndex
+    if (newIndex > oldIndex) newIndex -= 1;
     _customTags.insert(newIndex, _customTags.removeAt(oldIndex));
     setState(() {});
   }
 
   Widget get _buildBody {
     return ReorderableListView.builder(
-      onReorderItem: onReorderItem,
+      onReorder: onReorder,
       proxyDecorator: proxyDecorator,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.only(

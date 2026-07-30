@@ -7,16 +7,12 @@ class UpowerRankData {
   int? privilegeType;
   List<int>? tabs;
   List<LevelInfo>? levelInfo;
-  int? memberTotal;
-  Map<String, dynamic>? upInfo;
 
   UpowerRankData({
     this.rankInfo,
     this.privilegeType,
     this.tabs,
     this.levelInfo,
-    this.memberTotal,
-    this.upInfo,
   });
 
   factory UpowerRankData.fromJson(Map<String, dynamic> json) => UpowerRankData(
@@ -28,7 +24,5 @@ class UpowerRankData {
     levelInfo: (json['level_info'] as List<dynamic>?)
         ?.map((e) => LevelInfo.fromJson(e as Map<String, dynamic>))
         .toList(),
-    memberTotal: json['member_total'] as int?,
-    upInfo: json['up_info'] as Map<String, dynamic>?,
   );
 }

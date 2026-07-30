@@ -4,7 +4,8 @@ import 'package:collection/collection.dart' show IterableExtension;
 enum SubtitleFormat implements EnumWithLabel {
   json('JSON'),
   vtt('WEBVTT'),
-  srt('SRT');
+  srt('SRT')
+  ;
 
   @override
   final String label;

@@ -1,3 +1,4 @@
+import 'package:PiliPlus/harmony_adapt/harmony_channel.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -41,15 +42,13 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
   static RxBool anonymity =
       (Accounts.account.isNotEmpty && !Accounts.heartbeat.isLogin).obs;
 
-  late final list = <({IconData icon, double size, String title, VoidCallback onTap})>[
+  late final list = <({IconData icon, String title, VoidCallback onTap})>[
     (
-      size: 23,
-      icon: MdiIcons.folderDownloadOutline,
+      icon: CustomIcons.folderDownloadOutline,
       title: '离线缓存',
       onTap: () => Get.toNamed('/download'),
     ),
     (
-      size: 23,
       icon: CustomIcons.history,
       title: '观看记录',
       onTap: () {
@@ -59,7 +58,6 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
       },
     ),
     (
-      size: 20,
       icon: CustomIcons.subscriptions_outlined,
       title: '我的订阅',
       onTap: () {
@@ -69,7 +67,6 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
       },
     ),
     (
-      size: 22,
       icon: CustomIcons.watch_later_outlined,
       title: '稍后再看',
       onTap: () {
@@ -93,6 +90,7 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
 
   bool get isLogin {
     if (!accountService.isLogin.value) {
+      // SmartDialog.showToast('账号未登录');
       return false;
     }
     return true;
@@ -105,9 +103,6 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
         userInfo.value = response;
         if (response != Pref.userInfoCache) {
           GStorage.userInfo.put('userInfoCache', response);
-        }
-        if (response.mid != null && response.uname != null) {
-          Pref.setAccountUname(response.mid!, response.uname!);
         }
         accountService
           ..face.value = response.face!
@@ -159,6 +154,7 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
     }
     final newVal = !anonymity.value;
     anonymity.value = newVal;
+    HarmonyChannel.setShellBarsHidden(true);
     if (newVal) {
       SmartDialog.dismiss();
       SmartDialog.show<bool>(
@@ -166,6 +162,9 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
         usePenetrate: true,
         displayTime: const Duration(seconds: 2),
         alignment: Alignment.bottomCenter,
+        onDismiss: () {
+          HarmonyChannel.setShellBarsHidden(false);
+        },
         builder: (context) {
           final theme = Theme.of(context);
           final style = TextStyle(
@@ -232,7 +231,7 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
         res == true
             ? Accounts.set(AccountType.heartbeat, AnonymousAccount())
             : Accounts.accountMode[AccountType.heartbeat.index] =
-                AnonymousAccount();
+                  AnonymousAccount();
       });
     } else {
       Accounts.set(AccountType.heartbeat, Accounts.main);
@@ -242,6 +241,9 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
         usePenetrate: true,
         displayTime: const Duration(seconds: 1),
         alignment: Alignment.bottomCenter,
+        onDismiss: () {
+          HarmonyChannel.setShellBarsHidden(false);
+        },
         builder: (context) {
           final theme = Theme.of(context);
           return ColoredBox(
@@ -292,7 +294,7 @@ class MineController extends CommonDataController<FavFolderData, FavFolderData>
   @override
   Future<void> onRefresh({bool isManual = true}) {
     if (!accountService.isLogin.value) {
-      return Future.syncValue(null);
+      return Future.value(null);
     }
     queryUserInfo();
     return super.onRefresh().whenComplete(() {

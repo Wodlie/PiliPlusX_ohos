@@ -92,13 +92,16 @@ class _AnimatedHeight extends SingleChildRenderObjectWidget {
 /// ref [RenderAnimatedSize]
 class RenderAnimatedHeight extends RenderProxyBox {
   RenderAnimatedHeight({
-    required this._vsync,
+    required TickerProvider vsync,
     required Duration duration,
     Duration? reverseDuration,
-    this._curve = Curves.linear,
-    this._clipBehavior = .hardEdge,
-    required this._expand,
-  }) {
+    Curve curve = Curves.linear,
+    Clip clipBehavior = .hardEdge,
+    required bool expand,
+  }) : _vsync = vsync,
+       _curve = curve,
+       _clipBehavior = clipBehavior,
+       _expand = expand {
     _controller =
         AnimationController(
           vsync: vsync,

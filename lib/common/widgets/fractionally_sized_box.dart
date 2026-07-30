@@ -35,8 +35,8 @@ class CustomRenderFractionallySizedOverflowBox
     super.heightFactor,
     super.alignment,
     super.textDirection,
-    required this._maxWidth,
-  });
+    required double maxWidth,
+  }) : _maxWidth = maxWidth;
 
   final double _maxWidth;
 

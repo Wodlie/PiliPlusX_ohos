@@ -39,19 +39,6 @@ class FollowController extends GetxController with GetTickerProviderStateMixin {
     name.value = res.dataOrNull?.card?.name;
   }
 
-  void onInitTab() {
-    int initialIndex = 0;
-    if (tabController != null) {
-      initialIndex = tabController!.index.clamp(0, tabs.length - 1);
-      tabController!.dispose();
-    }
-    tabController = TabController(
-      initialIndex: initialIndex,
-      length: tabs.length,
-      vsync: this,
-    );
-  }
-
   Future<void> queryFollowUpTags() async {
     final res = await MemberHttp.followUpTags();
     if (res case Success(:final response)) {
@@ -65,20 +52,28 @@ class FollowController extends GetxController with GetTickerProviderStateMixin {
     }
   }
 
-  @override
-  void onClose() {
-    tabController?.dispose();
-    super.onClose();
+  void onInitTab() {
+    int initialIndex = 0;
+    if (tabController != null) {
+      initialIndex = tabController!.index.clamp(0, tabs.length - 1);
+      tabController!.dispose();
+    }
+    tabController = TabController(
+      initialIndex: initialIndex,
+      length: tabs.length,
+      vsync: this,
+    );
   }
 
-  Future<void> onCreateTag(String tagName) async {
-    final res = await MemberHttp.createFollowTag(tagName);
-    if (res.isSuccess) {
+  void onCreateFavTag(({int tagid, String tagName}) res) {
+    if (isClosed) return;
+    if (followState.value.isSuccess) {
+      tabs.add(MemberTagItemModel.fromCreate(res));
+      onInitTab();
+      followState.refresh();
+    } else {
       followState.value = LoadingState.loading();
       queryFollowUpTags();
-      SmartDialog.showToast('创建成功');
-    } else {
-      res.toast();
     }
   }
 
@@ -93,14 +88,22 @@ class FollowController extends GetxController with GetTickerProviderStateMixin {
     }
   }
 
-  Future<void> onDelTag(int tagid) async {
+  Future<void> onDelTag(int index, int tagid) async {
     final res = await MemberHttp.delFollowTag(tagid);
     if (res.isSuccess) {
-      followState.value = LoadingState.loading();
-      queryFollowUpTags();
+      tabs.removeAt(index);
+      onInitTab();
+      followState.refresh();
       SmartDialog.showToast('删除成功');
     } else {
       res.toast();
     }
+  }
+
+  @override
+  void onClose() {
+    tabController?.dispose();
+    tabController = null;
+    super.onClose();
   }
 }

@@ -78,89 +78,83 @@ class _LiveAreaPageState extends State<LiveAreaPage> {
   ) {
     return switch (loadingState) {
       Loading() => const SizedBox.shrink(),
-      Success(:var response) =>
-        response?.isNotEmpty == true
-            ? DefaultTabController(
-                length: response!.length,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TabBar(
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      tabs: response.map((e) => Tab(text: e.name)).toList(),
-                    ),
-                    Expanded(
-                      child: tabBarView(
-                        children: response
-                            .map(
-                              (e) => KeepAliveWrapper(
-                                child: Builder(
-                                  builder: (context) {
-                                    if (e.areaList.isNullOrEmpty) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    return GridView.builder(
-                                    padding: EdgeInsets.only(
-                                      top: 12,
-                                      bottom: bottom + 100,
-                                    ),
-                                    gridDelegate:
-                                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                                          maxCrossAxisExtent: 100,
-                                          mainAxisSpacing: 10,
-                                          crossAxisSpacing: 10,
-                                          mainAxisExtent: 80,
-                                        ),
-                                    itemCount: e.areaList!.length,
-                                    itemBuilder: (context, index) {
-                                      final item = e.areaList![index];
-                                      return _tagItem(
-                                        theme: theme,
-                                        item: item,
-                                        onPressed: () {
-                                          // success
-                                          bool? isFav =
-                                              _controller.favInfo[item.id];
-                                          if (isFav == true) {
-                                            _controller.favInfo[item.id] =
-                                                false;
-                                            _controller.favState
-                                              ..value.data.remove(item)
-                                              ..refresh();
-                                            (context as Element)
-                                                .markNeedsBuild();
-                                          } else {
-                                            // check
-                                            if (_controller
-                                                .favState
-                                                .value
-                                                .isSuccess) {
+      Success(:final response) =>
+        response != null && response.isNotEmpty
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TabBar(
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
+                    controller: _controller.tabController,
+                    tabs: response.map((e) => Tab(text: e.name)).toList(),
+                  ),
+                  Expanded(
+                    child: tabBarView(
+                      controller: _controller.tabController,
+                      children: response
+                          .map(
+                            (e) => KeepAliveWrapper(
+                              child: e.areaList.isNullOrEmpty
+                                  ? const SizedBox.shrink()
+                                  : GridView.builder(
+                                      padding: EdgeInsets.only(
+                                        top: 12,
+                                        bottom: bottom + 100,
+                                      ),
+                                      gridDelegate:
+                                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                                            maxCrossAxisExtent: 100,
+                                            mainAxisSpacing: 10,
+                                            crossAxisSpacing: 10,
+                                            mainAxisExtent: 80,
+                                          ),
+                                      itemCount: e.areaList!.length,
+                                      itemBuilder: (context, index) {
+                                        final item = e.areaList![index];
+                                        return _tagItem(
+                                          theme: theme,
+                                          item: item,
+                                          onPressed: () {
+                                            // success
+                                            bool? isFav =
+                                                _controller.favInfo[item.id];
+                                            if (isFav == true) {
                                               _controller.favInfo[item.id] =
-                                                  true;
+                                                  false;
                                               _controller.favState
-                                                ..value.data.add(item)
+                                                ..value.data.remove(item)
                                                 ..refresh();
                                               (context as Element)
                                                   .markNeedsBuild();
+                                            } else {
+                                              // check
+                                              if (_controller
+                                                  .favState
+                                                  .value
+                                                  .isSuccess) {
+                                                _controller.favInfo[item.id] =
+                                                    true;
+                                                _controller.favState
+                                                  ..value.data.add(item)
+                                                  ..refresh();
+                                                (context as Element)
+                                                    .markNeedsBuild();
+                                              }
                                             }
-                                          }
-                                        },
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
-                              ),
-                            )
-                            .toList(),
-                      ),
+                                          },
+                                        );
+                                      },
+                                    ),
+                            ),
+                          )
+                          .toList(),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               )
             : scrollErrorWidget(onReload: _controller.onReload),
-      Error(:var errMsg) => scrollErrorWidget(
+      Error(:final errMsg) => scrollErrorWidget(
         errMsg: errMsg,
         onReload: _controller.onReload,
       ),
@@ -171,8 +165,7 @@ class _LiveAreaPageState extends State<LiveAreaPage> {
     ThemeData theme,
     LoadingState<List<AreaItem>?> loadingState,
   ) {
-    if (loadingState.isSuccess) {
-      final List<AreaItem>? list = loadingState.data;
+    if (loadingState case Success(:final response)) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Column(
@@ -193,23 +186,21 @@ class _LiveAreaPageState extends State<LiveAreaPage> {
               ),
             ),
             const SizedBox(height: 8),
-            if (list?.isNotEmpty == true) ...[
+            if (response != null && response.isNotEmpty) ...[
               SortableWrap(
-                onSortStart: (index) {
-                  _controller.isEditing.value = true;
-                },
+                onSortStart: (index) => _controller.isEditing.value = true,
                 onSorted: (int oldIndex, int newIndex) {
-                  list.insert(newIndex, list.removeAt(oldIndex));
+                  response.insert(newIndex, response.removeAt(oldIndex));
                 },
                 spacing: 12,
                 runSpacing: 8,
-                children: list!
+                children: response
                     .map(
                       (item) => _favTagItem(
                         theme: theme,
                         item: item,
                         onPressed: () {
-                          list.remove(item);
+                          response.remove(item);
                           _controller
                             ..favInfo[item.id] = false
                             ..favState.refresh();
@@ -278,14 +269,16 @@ class _LiveAreaPageState extends State<LiveAreaPage> {
               top: 0,
               right: 16,
               child: Obx(() {
-                if (_controller.isEditing.value &&
-                    _controller.favState.value.isSuccess) {
-                  bool? isFav = _controller.favInfo[item.id];
-                  if (isFav == null) {
-                    isFav = _controller.favState.value.data.contains(item);
-                    _controller.favInfo[item.id] = isFav;
-                  }
-                  return iconButton(
+                if (_controller.isEditing.value) {
+                  if (_controller.favState.value case Success(
+                    :final response,
+                  )) {
+                    bool? isFav = _controller.favInfo[item.id];
+                    if (isFav == null) {
+                      isFav = response.contains(item);
+                      _controller.favInfo[item.id] = isFav;
+                    }
+                    return iconButton(
                       size: 17,
                       iconSize: 13,
                       icon: isFav
@@ -300,8 +293,9 @@ class _LiveAreaPageState extends State<LiveAreaPage> {
                       onPressed: onPressed,
                     );
                   }
-                  return const SizedBox.shrink();
-                }),
+                }
+                return const SizedBox.shrink();
+              }),
             ),
         ],
       ),
@@ -328,10 +322,7 @@ class _LiveAreaPageState extends State<LiveAreaPage> {
             text: item.name!,
             fontSize: 14,
             bgColor: Colors.transparent,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 4,
-            ),
+            padding: const .symmetric(horizontal: 12, vertical: 4),
             onTap: (value) {
               if (_controller.isEditing.value) {
                 onPressed();

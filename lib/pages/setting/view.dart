@@ -5,13 +5,7 @@ import 'package:PiliPlus/models/common/setting_type.dart';
 import 'package:PiliPlus/pages/about/view.dart';
 import 'package:PiliPlus/pages/experimental/view.dart';
 import 'package:PiliPlus/pages/login/controller.dart';
-import 'package:PiliPlus/pages/setting/block_filter_setting.dart';
-import 'package:PiliPlus/pages/setting/extra_setting.dart';
-import 'package:PiliPlus/pages/setting/play_setting.dart';
-import 'package:PiliPlus/pages/setting/privacy_setting.dart';
-import 'package:PiliPlus/pages/setting/recommend_setting.dart';
-import 'package:PiliPlus/pages/setting/style_setting.dart';
-import 'package:PiliPlus/pages/setting/video_setting.dart';
+import 'package:PiliPlus/pages/setting/common_setting.dart';
 import 'package:PiliPlus/pages/setting/widgets/multi_select_dialog.dart';
 import 'package:PiliPlus/pages/webdav/view.dart';
 import 'package:PiliPlus/utils/accounts.dart';
@@ -45,11 +39,12 @@ class _SettingPageState extends State<SettingPage> {
   late SettingType _type = SettingType.privacySetting;
   final RxBool _noAccount = Accounts.account.isEmpty.obs;
   late bool _isPortrait;
+  late ThemeData theme;
 
   static const List<_SettingsModel> _items = [
     _SettingsModel(
       type: SettingType.privacySetting,
-      subtitle: '黑名单、无痕模式',
+      subtitle: '黑名单',
       icon: Icon(Icons.privacy_tip_outlined),
     ),
     _SettingsModel(
@@ -73,11 +68,6 @@ class _SettingPageState extends State<SettingPage> {
       icon: Icon(Icons.style_outlined),
     ),
     _SettingsModel(
-      type: SettingType.blockFilterSetting,
-      subtitle: '评论关键词、动态关键词、推荐关键词、@评论过滤、屏蔽带货等',
-      icon: Icon(Icons.block_outlined),
-    ),
-    _SettingsModel(
       type: SettingType.extraSetting,
       subtitle: '震动、搜索、收藏、ai、评论、动态、代理、更新检查等',
       icon: Icon(Icons.extension_outlined),
@@ -97,9 +87,15 @@ class _SettingPageState extends State<SettingPage> {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    theme = Theme.of(context);
     _isPortrait = MediaQuery.sizeOf(context).isPortrait;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
@@ -122,34 +118,22 @@ class _SettingPageState extends State<SettingPage> {
                   Expanded(
                     flex: 6,
                     child: switch (_type) {
-                      SettingType.privacySetting => const PrivacySetting(
+                      .privacySetting ||
+                      .recommendSetting ||
+                      .videoSetting ||
+                      .playSetting ||
+                      .styleSetting ||
+                      .extraSetting => CommonSetting(
+                        settingType: _type,
                         showAppBar: false,
                       ),
-                      SettingType.recommendSetting => const RecommendSetting(
+                      .webdavSetting => const WebDavSettingPage(
                         showAppBar: false,
                       ),
-                      SettingType.videoSetting => const VideoSetting(
+                      .experimentalSetting => const ExperimentalPage(
                         showAppBar: false,
                       ),
-                      SettingType.playSetting => const PlaySetting(
-                        showAppBar: false,
-                      ),
-                      SettingType.styleSetting => const StyleSetting(
-                        showAppBar: false,
-                      ),
-                      SettingType.blockFilterSetting => const BlockFilterSetting(
-                        showAppBar: false,
-                      ),
-                      SettingType.extraSetting => const ExtraSetting(
-                        showAppBar: false,
-                      ),
-                      SettingType.webdavSetting => const WebDavSettingPage(
-                        showAppBar: false,
-                      ),
-                      SettingType.experimentalSetting => const ExperimentalPage(
-                        showAppBar: false,
-                      ),
-                      SettingType.about => const AboutPage(showAppBar: false),
+                      .about => const AboutPage(showAppBar: false),
                     },
                   ),
                 ],
@@ -166,7 +150,19 @@ class _SettingPageState extends State<SettingPage> {
 
   void _toPage(SettingType type) {
     if (_isPortrait) {
-      Get.toNamed('/${type.name}');
+      Get.to(
+        () => switch (type) {
+          .privacySetting ||
+          .recommendSetting ||
+          .videoSetting ||
+          .playSetting ||
+          .styleSetting ||
+          .extraSetting => CommonSetting(settingType: type),
+          .webdavSetting => const WebDavSettingPage(),
+          .experimentalSetting => const ExperimentalPage(),
+          .about => const AboutPage(),
+        },
+      );
     } else {
       _type = type;
       setState(() {});
@@ -207,7 +203,7 @@ class _SettingPageState extends State<SettingPage> {
         ListTile(
           onTap: () => LoginPageController.switchAccountDialog(context),
           leading: const Icon(Icons.switch_account_outlined),
-          title: Text('设置账号模式', style: titleStyle),
+          title: Text('切换账号', style: titleStyle),
         ),
         Obx(
           () => _noAccount.value

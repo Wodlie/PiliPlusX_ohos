@@ -70,8 +70,6 @@ class SearchVideoItemModel extends HorizontalVideoModel {
   String? arcurl;
   String? tag;
   int? ctime;
-  String? type;
-  int? isUnionVideo;
 
   @override
   int? get seasonId => aid;
@@ -90,8 +88,6 @@ class SearchVideoItemModel extends HorizontalVideoModel {
     duration = DurationUtils.parseDuration(json['duration']);
     owner = SearchOwner.fromJson(json);
     stat = SearchStat.fromJson(json);
-    type = json['type'];
-    isUnionVideo = json['is_union_video'];
     switch (json['type']) {
       case 'ketang':
         badge = '课堂';

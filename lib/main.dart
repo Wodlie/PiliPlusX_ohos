@@ -8,6 +8,7 @@ import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
 import 'package:PiliPlus/common/widgets/scale_app.dart';
 import 'package:PiliPlus/common/widgets/scroll_behavior.dart';
 import 'package:PiliPlus/harmony_adapt/harmony_channel.dart';
+import 'package:PiliPlus/harmony_adapt/shell_bars_observer.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
 import 'package:PiliPlus/router/app_pages.dart';
@@ -15,12 +16,12 @@ import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/cache_manager.dart';
-import 'package:PiliPlus/utils/max_screen_size.dart';
 import 'package:PiliPlus/utils/calc_window_position.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
-import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
+import 'package:PiliPlus/utils/image_memory_cleaner.dart';
 import 'package:PiliPlus/utils/json_file_handler.dart';
+import 'package:PiliPlus/utils/max_screen_size.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
@@ -31,6 +32,7 @@ import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:auto_orientation/auto_orientation.dart';
 import 'package:catcher_2/catcher_2.dart';
+import 'package:collection/collection.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart' show DeviceGestureSettings;
@@ -49,6 +51,8 @@ import 'package:screen_brightness_platform_interface/screen_brightness_platform_
 import 'package:window_manager/window_manager.dart' hide calcWindowPosition;
 
 WebViewEnvironment? webViewEnvironment;
+
+EdgeInsets? tmpPadding;
 
 Future<void> _initDownPath() async {
   if (PlatformUtils.isDesktop) {
@@ -103,7 +107,11 @@ void main() async {
     exit(0);
   }
   ScaledWidgetsFlutterBinding.instance.scaleFactor = Pref.uiScale;
-  await Future.wait([_initDownPath(), _initTmpPath()]);
+  await Future.wait([
+    _initDownPath(),
+    _initTmpPath(),
+    CacheManager.ensureInitialized(),
+  ]);
   Get
     ..lazyPut(AccountService.new)
     ..lazyPut(DownloadService.new);
@@ -111,10 +119,8 @@ void main() async {
   // 配置网络请求
   HttpOverrides.global = _CustomHttpOverrides();
 
-  CacheManager.autoClearCache();
-
   if (PlatformUtils.isMobile) {
-    if (Platform.isAndroid && !OS.isHarmony) MaxScreenSize.init();
+    if (Platform.isAndroid) MaxScreenSize.init();
     await Future.wait([
       SystemChrome.setPreferredOrientations(
         [
@@ -125,6 +131,7 @@ void main() async {
           ],
         ],
       ),
+      setupServiceLocator(),
     ]);
     // 鸿蒙embedder将 portraitUp+landscapeLeft+landscapeRight 组合映射为
     // window.Orientation.LOCKED(锁定启动时的方向),导致平板无法自动旋转,
@@ -132,13 +139,11 @@ void main() async {
     if (OS.isHarmony && Pref.horizontalScreen) {
       await AutoOrientation.setScreenOrientationUser();
     }
-  }
-
-  if (PlatformUtils.isMobile || OS.isHarmony) {
+  } else if (OS.isHarmony) {
+    // 鸿蒙 2in1 设备 isPCOS 为 true（isMobile 为 false），但同样需要媒体服务，
+    // 否则后台播放与系统播控失效
     await setupServiceLocator();
-  }
-
-  if (Platform.isWindows) {
+  } else if (Platform.isWindows) {
     if (await WebViewEnvironment.getAvailableVersion() != null) {
       webViewEnvironment = await WebViewEnvironment.create(
         settings: WebViewEnvironmentSettings(
@@ -157,12 +162,10 @@ void main() async {
   Request.setCookie();
   RequestUtils.syncHistoryStatus();
 
-  SmartDialog.config.toast = SmartConfigToast(
-    displayType: SmartToastType.onlyRefresh,
-  );
+  SmartDialog.config.toast = SmartConfigToast(displayType: .onlyRefresh);
 
   if (PlatformUtils.isMobile) {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setEnabledSystemUIMode(.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         systemNavigationBarColor: Colors.transparent,
@@ -184,7 +187,7 @@ void main() async {
         }
         FlutterDisplayMode.setPreferredMode(displayMode ?? DisplayMode.auto);
       });
-    } else if (!OS.isHarmony) {
+    } else {
       ScreenBrightnessPlatform.instance.setAutoReset(false);
     }
   } else if (PlatformUtils.isDesktop && !OS.isHarmony) {
@@ -216,6 +219,7 @@ void main() async {
   // TODO: 鸿蒙待适配 异常捕获
   if (Pref.enableLog && !OS.isHarmony) {
     // 异常捕获 logo记录
+    // catcher_2 保持 ohos 使用的 pub 版本 API（上游用的是其 fork）
     final customParameters = {
       'BuildConfig':
           '\nBuild Time: ${DateFormatUtils.format(BuildConfig.buildTime, format: DateFormatUtils.longFormatDs)}\n'
@@ -253,6 +257,8 @@ void main() async {
     runApp(const MyApp());
   }
 
+  ImageMemoryCleaner.instance.register();
+
   if (OS.isHarmony) {
     // 本次启动若由跨设备接续拉起，首帧后取回接续数据并跳转视频页；
     // 顺带注册 method channel handler，保证热启动接续推送可达
@@ -268,8 +274,7 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   static ColorScheme? _light, _dark;
-
-  static ThemeData? darkThemeData;
+  static final shellBarsObserver = ShellBarsObserver();
 
   static void _onBack() {
     if (SmartDialog.checkExist()) {
@@ -332,8 +337,8 @@ class MyApp extends StatelessWidget {
       getPages: Routes.getPages,
       defaultTransition: Pref.pageTransition,
       builder: FlutterSmartDialog.init(
-        toastBuilder: (msg) => CustomToast(msg: msg),
-        loadingBuilder: (msg) => LoadingWidget(msg: msg),
+        toastBuilder: CustomToast.new,
+        loadingBuilder: LoadingWidget.new,
         notifyStyle: const FlutterSmartNotifyStyle(
           warningBuilder: NotifyWarning.new,
         ),
@@ -342,9 +347,10 @@ class MyApp extends StatelessWidget {
       navigatorObservers: [
         routeObserver,
         FlutterSmartDialog.observer,
+        shellBarsObserver,
       ],
       scrollBehavior: PlatformUtils.isDesktop
-          ? const CustomScrollBehavior()
+          ? const CustomScrollBehavior(desktopDragDevices)
           : null,
     );
   }
@@ -378,9 +384,9 @@ class MyApp extends StatelessWidget {
         data: mediaQuery.copyWith(
           textScaler: textScaler,
           size: mediaQuery.size / uiScale,
-          padding: mediaQuery.padding / uiScale,
+          padding: tmpPadding ?? mediaQuery.padding / uiScale,
           viewInsets: mediaQuery.viewInsets / uiScale,
-          viewPadding: mediaQuery.viewPadding / uiScale,
+          viewPadding: tmpPadding ?? mediaQuery.viewPadding / uiScale,
           devicePixelRatio: mediaQuery.devicePixelRatio * uiScale,
           gestureSettings: gestureSettings,
         ),
@@ -388,10 +394,7 @@ class MyApp extends StatelessWidget {
       );
     } else {
       child = MediaQuery(
-        data: mediaQuery.copyWith(
-          textScaler: textScaler,
-          gestureSettings: gestureSettings,
-        ),
+        data: mediaQuery.copyWith(textScaler: textScaler),
         child: child!,
       );
     }

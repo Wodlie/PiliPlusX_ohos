@@ -22,8 +22,9 @@ class PlayUrlModel {
     this.seekType,
     this.dash,
     this.supportFormats,
+    int lastPlayTime = 0,
     this.lastPlayCid,
-  });
+  }) : _lastPlayTime = lastPlayTime;
 
   String? from;
   String? result;
@@ -42,7 +43,7 @@ class PlayUrlModel {
   List<FormatItem>? supportFormats;
   Volume? volume;
 
-  int _lastPlayTime = 0;
+  late int _lastPlayTime;
   int get lastPlayTime => _lastPlayTime;
   set lastPlayTime(int? value) {
     if (value != null && value > 0) {

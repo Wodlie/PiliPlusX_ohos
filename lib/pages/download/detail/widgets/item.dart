@@ -92,6 +92,13 @@ class DetailItem extends StatelessWidget {
                   },
                   child: const Text('更新弹幕', style: TextStyle(fontSize: 14)),
                 ),
+                DialogOption(
+                  onPressed: () {
+                    Get.back();
+                    entry.shareSelf();
+                  },
+                  child: const Text('分享', style: TextStyle(fontSize: 14)),
+                ),
               ],
             ),
           )

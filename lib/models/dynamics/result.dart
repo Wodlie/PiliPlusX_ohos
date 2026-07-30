@@ -428,10 +428,9 @@ class ModuleAuthorModel extends Avatar {
     }
     type = json['type'];
     if (PendantAvatar.showDecorate) {
-      final decorate = json['decorate'] ?? json['decoration_card'];
-      if (decorate != null) {
-        this.decorate = Decorate.fromJson(decorate);
-      }
+      decorate = json['decorate'] == null
+          ? null
+          : Decorate.fromJson(json['decorate']);
     } else {
       pendant = null;
     }
@@ -466,7 +465,7 @@ class Fan {
 
   factory Fan.fromJson(Map<String, dynamic> json) => Fan(
     color: json["color"],
-    numStr: json["num_str"] ?? json['num_desc'],
+    numStr: json["num_str"],
   );
 }
 

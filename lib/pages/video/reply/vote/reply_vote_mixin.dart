@@ -7,13 +7,13 @@ mixin ReplyVoteMixin on CommonListController<MainListReply, ReplyInfo> {
   VoteCard? voteCard;
 
   @override
-  bool customHandleResponse(bool isRefresh, Success<dynamic> response) {
-    if (isRefresh && response.response is MainListReply) {
-      final res = response.response as MainListReply;
+  bool customHandleResponse(bool isRefresh, Success<MainListReply> response) {
+    if (isRefresh) {
+      final res = response.response;
       if (res.hasVoteCard()) {
         voteCard = res.voteCard;
       }
     }
-    return super.customHandleResponse(isRefresh, response as Success<MainListReply>);
+    return super.customHandleResponse(isRefresh, response);
   }
 }

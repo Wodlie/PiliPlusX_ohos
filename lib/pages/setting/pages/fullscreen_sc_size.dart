@@ -1,15 +1,16 @@
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 
+import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/extra_hittest_stack.dart';
 import 'package:PiliPlus/models_new/live/live_superchat/item.dart';
 import 'package:PiliPlus/pages/live_room/superchat/superchat_card.dart';
+import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 const kFullScreenSCWidth = 255.0;
 
@@ -30,13 +31,9 @@ class _FullScreenScSizeState extends State<FullScreenScSize> {
   void initState() {
     super.initState();
     if (Platform.isAndroid) {
-      SystemChrome.setPreferredOrientations(
-        const [DeviceOrientation.landscapeLeft],
-      );
+      landscapeLeftMode();
     } else if (Platform.isIOS) {
-      SystemChrome.setPreferredOrientations(
-        const [DeviceOrientation.landscapeRight],
-      );
+      landscapeRightMode();
     }
   }
 
@@ -44,16 +41,9 @@ class _FullScreenScSizeState extends State<FullScreenScSize> {
   void dispose() {
     if (PlatformUtils.isMobile) {
       if (Pref.horizontalScreen) {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.portraitUp,
-          DeviceOrientation.portraitDown,
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
+        fullMode();
       } else {
-        SystemChrome.setPreferredOrientations(
-          const [DeviceOrientation.portraitUp],
-        );
+        portraitUpMode();
       }
     }
     super.dispose();
@@ -63,7 +53,7 @@ class _FullScreenScSizeState extends State<FullScreenScSize> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final padding = MediaQuery.viewPaddingOf(context);
-    _padding = EdgeInsets.only(
+    _padding = .only(
       right: padding.right + 17,
       left: padding.left + 25,
       bottom: padding.bottom + 25,
@@ -93,9 +83,9 @@ class _FullScreenScSizeState extends State<FullScreenScSize> {
 
   Widget get _buildBody {
     return Align(
-      alignment: Alignment.bottomLeft,
+      alignment: .bottomLeft,
       child: ExtraHitTestStack(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         children: [
           SizedBox(
             width: _width,
@@ -103,7 +93,6 @@ class _FullScreenScSizeState extends State<FullScreenScSize> {
               child: SuperChatCard(
                 item: _randomSC,
                 persistentSC: true,
-                onReport: () {},
               ),
             ),
           ),
@@ -113,23 +102,21 @@ class _FullScreenScSizeState extends State<FullScreenScSize> {
             right: -17,
             width: 34,
             child: MouseRegion(
-              onEnter: (_) {},
-              onExit: (_) {},
               cursor: SystemMouseCursors.resizeRight,
               child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
+                behavior: .opaque,
                 onHorizontalDragUpdate: _onHorizontalDragUpdate,
                 onHorizontalDragEnd: _onHorizontalDragEnd,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
+                    shape: .circle,
                     color: _colorScheme.secondaryContainer.withValues(
-                      alpha: 0.8,
+                      alpha: .8,
                     ),
                   ),
                   child: Icon(
                     size: 18,
-                    Icons.open_in_full,
+                    CustomIcons.open_in_full_rotate_45,
                     color: _colorScheme.onSecondaryContainer,
                   ),
                 ),

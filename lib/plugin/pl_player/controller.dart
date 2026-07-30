@@ -1,4 +1,4 @@
-import 'dart:async' show StreamSubscription, Timer;
+import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:convert' show ascii;
 import 'dart:io' show Platform;
 import 'dart:math' show max, min;
@@ -19,6 +19,8 @@ import 'package:PiliPlus/models/user/danmaku_rule.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/models_new/video/video_shot/data.dart';
 import 'package:PiliPlus/pages/danmaku/danmaku_model.dart';
+import 'package:PiliPlus/pages/setting/models/play_settings.dart'
+    show kMaxVolume;
 import 'package:PiliPlus/pages/sponsor_block/block_mixin.dart';
 import 'package:PiliPlus/plugin/pl_player/models/data_source.dart';
 import 'package:PiliPlus/plugin/pl_player/models/data_status.dart';
@@ -32,9 +34,13 @@ import 'package:PiliPlus/plugin/pl_player/models/video_fit_type.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/asset_utils.dart';
+import 'package:PiliPlus/utils/device_utils.dart';
+import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/extension/box_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
+import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
@@ -47,22 +53,21 @@ import 'package:PiliPlus/utils/utils.dart';
 import 'package:archive/archive.dart' show getCrc32;
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:easy_debounce/easy_throttle.dart';
-import 'package:floating/floating.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:flutter/services.dart' show HapticFeedback, DeviceOrientation;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:floating/floating.dart';
 import 'package:os_type/os_type.dart';
 import 'package:path/path.dart' as path;
+import 'package:screen_brightness_platform_interface/screen_brightness_platform_interface.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
-
-const double kMaxVolume = 300.0;
 
 typedef PlayCallback = Future<void>? Function();
 
@@ -72,41 +77,26 @@ class PlPlayerController with BlockConfigMixin {
 
   static PlPlayerController? _instance;
 
-  final playerStatus = PlPlayerStatus(PlayerStatus.playing);
+  final playerStatus = PlPlayerStatus(.playing);
 
-  final Rx<DataStatus> dataStatus = Rx(DataStatus.none);
+  final Rx<DataStatus> dataStatus = Rx(.none);
 
   Duration? seekToPos;
   bool hasToasted = false;
   final RxBool isSeeking = false.obs;
 
-  /// 播放位置（秒）
   final RxInt position = RxInt(0);
 
   int get positionInMilliseconds =>
       videoPlayerController?.state.position.inMilliseconds ?? 0;
 
-  /// 播放位置（Duration，用于 Reactive 更新）
-  Duration positionDuration = Duration.zero;
-
-  /// 进度条位置
-  Duration sliderPosition = Duration.zero;
-  final RxInt sliderPositionSeconds = 0.obs;
-  // 展示使用
-  final Rx<Duration> sliderTempPosition = Rx(Duration.zero);
-
   final RxInt buffered = RxInt(0);
 
-  /// 视频缓冲（Duration，用于 Reactive 更新）
-  final Rx<Duration> bufferedDuration = Rx(Duration.zero);
-  final RxInt bufferedSeconds = 0.obs;
-
   final RxInt duration = RxInt(0);
-  final Rx<Duration> durationDuration = Rx(Duration.zero);
+
   int durationInMilliseconds = 0;
 
   void updateDuration(Duration value) {
-    durationDuration.value = value;
     duration.value = value.inSeconds;
     durationInMilliseconds = value.inMilliseconds;
   }
@@ -120,6 +110,9 @@ class PlPlayerController with BlockConfigMixin {
   final RxDouble volume = RxDouble(
     PlatformUtils.isDesktop ? Pref.desktopVolume : 1.0,
   );
+
+  /// 实际音量
+  final actualVolume = 0.0.obs;
   final setSystemBrightness = Pref.setSystemBrightness;
 
   final RxDouble brightness = (-1.0).obs;
@@ -132,16 +125,12 @@ class PlPlayerController with BlockConfigMixin {
 
   final RxBool controlsLock = false.obs;
 
-  bool _isSliderMoving = false;
-  bool get isSliderMoving => _isSliderMoving;
-  set isSliderMoving(bool v) => _isSliderMoving = v;
-
   final RxBool isFullScreen = false.obs;
   bool isLive = false;
 
   bool _isVertical = false;
 
-  final Rx<VideoFitType> videoFit = Rx(VideoFitType.contain);
+  final Rx<VideoFitType> videoFit = Rx(.contain);
 
   late final RxBool continuePlayInBackground =
       Pref.continuePlayInBackground.obs;
@@ -171,11 +160,13 @@ class PlPlayerController with BlockConfigMixin {
   // 被打断后 mpv 仍自认为在播放，进度停滞、UI 按钮状态错误且无法点击恢复。
   // 用位置停滞检测兜底：播放中且非缓冲时位置连续数秒不前进，视为被系统打断。
   Timer? _stallWatchdog;
-  Duration? _stallLastPosition;
+  int? _stallLastPosition;
   int _stallTicks = 0;
   bool _audioInterrupted = false;
 
   Box setting = GStorage.setting;
+
+  // final Durations durations;
 
   String get bvid => _bvid!;
 
@@ -194,7 +185,7 @@ class PlPlayerController with BlockConfigMixin {
       'seasonId': _seasonId,
       'pgcType': _pgcType,
       'videoType': _videoType.name,
-      'progress': positionDuration.inMilliseconds,
+      'progress': positionInMilliseconds,
       'playing': playerStatus.isPlaying,
       'onlyPlayAudio': onlyPlayAudio.value,
     };
@@ -225,7 +216,12 @@ class PlPlayerController with BlockConfigMixin {
   final RxBool isBuffering = true.obs;
 
   /// 全屏方向
+  // ignore: unnecessary_getters_setters
   bool get isVertical => _isVertical;
+
+  set isVertical(bool value) {
+    _isVertical = value;
+  }
 
   /// 弹幕开关
   late final RxBool enableShowDanmaku = Pref.enableShowDanmaku.obs;
@@ -234,11 +230,9 @@ class PlPlayerController with BlockConfigMixin {
       isLive ? enableShowLiveDanmaku : enableShowDanmaku;
 
   late final bool autoPiP = Pref.autoPiP;
-  bool get isPipMode {
-    if (OS.isHarmony) return Floating().isPipMode;
-    if (Platform.isAndroid) return false; // replaced by OHOS Floating
-    return PlatformUtils.isDesktop && isDesktopPip;
-  }
+  bool get isPipMode =>
+      ((Platform.isAndroid || OS.isHarmony) && Floating().isPipMode) ||
+      (PlatformUtils.isDesktop && isDesktopPip);
 
   /// [isPipMode] 的响应式镜像（仅鸿蒙由 onPipModeChanged 驱动）。页面布局
   /// 依赖 isPipMode 时应同时监听它触发重建，否则 PiP 结束时若无视口变化
@@ -308,27 +302,23 @@ class PlPlayerController with BlockConfigMixin {
     }
   }
 
-  late bool _shouldSetPip = false;
+  late bool _isAutoEnterPip = false;
+  bool get isAutoEnterPip => _isAutoEnterPip;
 
-  bool get _isCurrVideoPage {
+  static bool get _isCurrVideoPage {
     final routing = Get.routing;
     if (routing.route is! GetPageRoute) {
       return false;
     }
-    final currentRoute = routing.current;
-    return currentRoute.startsWith('/video') ||
-        currentRoute.startsWith('/liveRoom');
+    return _isVideoPage(routing.current);
   }
 
-  bool get _isPreviousVideoPage {
-    final previousRoute = Get.previousRoute;
-    return previousRoute.startsWith('/video') ||
-        previousRoute.startsWith('/liveRoom');
+  static bool _isVideoPage(String routeName) {
+    return routeName == '/videoV' || routeName == '/liveRoom';
   }
 
   Future<PiPStatus> enterPip({bool isAuto = false}) {
     if (videoPlayerController != null) {
-      controls = false;
       final state = videoPlayerController!.state;
       return PageUtils.enterPip(
         isAuto: isAuto,
@@ -339,14 +329,8 @@ class PlPlayerController with BlockConfigMixin {
     return Future.value(PiPStatus.unavailable);
   }
 
-  void _disableAutoEnterPipIfNeeded() {
-    if (!_isPreviousVideoPage) {
-      _disableAutoEnterPip();
-    }
-  }
-
   void _disableAutoEnterPip() {
-    if (_shouldSetPip) {
+    if (_isAutoEnterPip) {
       if (OS.isHarmony) {
         Floating().setAutoPip(false);
       } else {
@@ -396,9 +380,6 @@ class PlPlayerController with BlockConfigMixin {
   late final fastForBackwardDuration = Duration(
     seconds: Pref.fastForBackwardDuration,
   );
-  late final fastForBackwardDuration_ = Duration(
-    seconds: Pref.fastForBackwardDuration_,
-  );
 
   late final horizontalSeasonPanel = Pref.horizontalSeasonPanel;
   late final preInitPlayer = Pref.preInitPlayer;
@@ -442,20 +423,17 @@ class PlPlayerController with BlockConfigMixin {
   late PlayRepeat playRepeat = Pref.playRepeat;
 
   TextStyle get subTitleStyle => TextStyle(
-        fontFamily: !Pref.useSystemFont && Platform.isAndroid
-            ? 'HarmonyOS_Sans'
-            : null,
-        height: 1.5,
-        fontSize:
-            16 * (isFullScreen.value ? subtitleFontScaleFS : subtitleFontScale),
-        letterSpacing: 0.1,
-        wordSpacing: 0.1,
-        color: Colors.white,
-        fontWeight: FontWeight.values[subtitleFontWeight],
-        backgroundColor: subtitleBgOpacity == 0
-            ? null
-            : Colors.black.withValues(alpha: subtitleBgOpacity),
-      );
+    height: 1.5,
+    fontSize:
+        16 * (isFullScreen.value ? subtitleFontScaleFS : subtitleFontScale),
+    letterSpacing: 0.1,
+    wordSpacing: 0.1,
+    color: Colors.white,
+    fontWeight: FontWeight.values[subtitleFontWeight],
+    backgroundColor: subtitleBgOpacity == 0
+        ? null
+        : Colors.black.withValues(alpha: subtitleBgOpacity),
+  );
 
   late final Rx<SubtitleViewConfiguration> subtitleConfig = getSubConfig.obs;
 
@@ -463,6 +441,18 @@ class PlPlayerController with BlockConfigMixin {
     final subTitleStyle = this.subTitleStyle;
     return SubtitleViewConfiguration(
       style: subTitleStyle,
+      // TODO 鸿蒙待适配 strokeStyle media_kit
+      // strokeStyle: subtitleBgOpacity == 0
+      //     ? subTitleStyle.copyWith(
+      //         color: null,
+      //         background: null,
+      //         backgroundColor: null,
+      //         foreground: Paint()
+      //           ..color = Colors.black
+      //           ..style = PaintingStyle.stroke
+      //           ..strokeWidth = subtitleStrokeWidth,
+      //       )
+      //     : null,
       padding: EdgeInsets.only(
         left: subtitlePaddingH.toDouble(),
         right: subtitlePaddingH.toDouble(),
@@ -479,27 +469,6 @@ class PlPlayerController with BlockConfigMixin {
   void onUpdatePadding(EdgeInsets padding) {
     subtitlePaddingB = padding.bottom.round().clamp(0, 200);
     putSubtitleSettings();
-  }
-
-  void updateSliderPositionSecond() {
-    int newSecond = sliderPosition.inSeconds;
-    if (sliderPositionSeconds.value != newSecond) {
-      sliderPositionSeconds.value = newSecond;
-    }
-  }
-
-  void updatePositionSecond() {
-    int newSecond = positionDuration.inSeconds;
-    if (position.value != newSecond) {
-      position.value = newSecond;
-    }
-  }
-
-  void updateBufferedSecond() {
-    int newSecond = bufferedDuration.value.inSeconds;
-    if (bufferedSeconds.value != newSecond) {
-      bufferedSeconds.value = newSecond;
-    }
   }
 
   static PlPlayerController? get instance => _instance;
@@ -554,6 +523,12 @@ class PlPlayerController with BlockConfigMixin {
 
   bool visible = true;
 
+  DeviceOrientation? _orientation;
+  // 上游基于 native_device_orientation 的方向监听在鸿蒙上无插件实现，
+  // 转屏由 harmony_adapt/HarmonyChannel 与 auto_orientation 处理，故移除。
+  void _stopOrientationListener() {}
+
+  // 添加一个私有构造函数
   PlPlayerController._() {
     if (!Accounts.heartbeat.isLogin || Pref.historyPause) {
       enableHeart = false;
@@ -561,27 +536,26 @@ class PlPlayerController with BlockConfigMixin {
 
     if (autoPiP) {
       if (Platform.isAndroid) {
-        Utils.sdkInt.then((sdkInt) {
-          if (sdkInt < 36) {
-            Utils.channel.setMethodCallHandler((call) async {
-              if (call.method == 'onUserLeaveHint') {
-                if (playerStatus.isPlaying && _isCurrVideoPage) {
-                  enterPip();
-                }
+        if (DeviceUtils.sdkInt < 36) {
+          Utils.channel.setMethodCallHandler((call) async {
+            if (call.method == 'onUserLeaveHint') {
+              if (playerStatus.isPlaying && _isCurrVideoPage) {
+                enterPip();
               }
-            });
-          } else {
-            _shouldSetPip = true;
-          }
-        });
+            }
+          });
+        } else {
+          _isAutoEnterPip = true;
+        }
       } else if (OS.isHarmony) {
-        _shouldSetPip = true;
+        _isAutoEnterPip = true;
       }
     }
   }
 
   // 获取实例 传参
   static PlPlayerController getInstance({bool isLive = false}) {
+    // 如果实例尚未创建，则创建一个新实例
     return (_instance ??= PlPlayerController._())
       ..isLive = isLive
       .._playerCount += 1;
@@ -633,6 +607,8 @@ class PlPlayerController with BlockConfigMixin {
       this.height = height;
       this.dataSource = dataSource;
       _autoPlay = autoplay;
+      // 初始化视频倍速
+      // _playbackSpeed.value = speed;
       // 初始化数据加载状态
       dataStatus.value = DataStatus.loading;
       // 初始化全屏方向
@@ -643,7 +619,6 @@ class PlPlayerController with BlockConfigMixin {
       _epid = epid;
       _seasonId = seasonId;
       _pgcType = pgcType;
-
       if (!isLive && bvid != null && cid != null) {
         HarmonyChannel.holdContinuation(this);
       } else {
@@ -667,20 +642,16 @@ class PlPlayerController with BlockConfigMixin {
 
       if (_playerCount == 0) {
         _removeListeners();
-        _videoPlayerController?.dispose();
+        await _videoPlayerController?.dispose();
         _videoPlayerController = null;
         _videoController = null;
         return;
       }
 
       updateDuration(duration ?? _videoPlayerController!.state.duration);
-      positionDuration = sliderPosition = seekTo ?? Duration.zero;
       position.value = buffered.value = seekTo?.inSeconds ?? 0;
-      updatePositionSecond();
-      updateSliderPositionSecond();
-      updateBufferedSecond();
 
-      dataStatus.value = DataStatus.loaded;
+      dataStatus.value = .loaded;
 
       if (autoFullScreenFlag && autoEnterFullScreen) {
         triggerFullScreen(status: true);
@@ -757,14 +728,13 @@ class PlPlayerController with BlockConfigMixin {
 
   Future<Player> _initPlayer() async {
     assert(_videoPlayerController == null);
-    final opt = <String, String>{
+    final opt = {
       'video-sync': Pref.videoSync,
-      if (Platform.isAndroid || OS.isHarmony)
-        'volume-max': kMaxVolume.toString(),
       if (Platform.isAndroid) 'ao': Pref.audioOutput,
       'volume':
           (PlatformUtils.isMobile ? Pref.playerVolume : volume.value * 100)
               .toString(),
+      'volume-max': kMaxVolume.toString(),
     };
     final autosync = Pref.autosync;
     if (autosync != '0') {
@@ -773,9 +743,6 @@ class PlPlayerController with BlockConfigMixin {
 
     final player = Player(
       configuration: PlayerConfiguration(
-        bufferSize: Pref.expandBuffer
-            ? (isLive ? 64 * 1024 * 1024 : 32 * 1024 * 1024)
-            : (isLive ? 16 * 1024 * 1024 : 4 * 1024 * 1024),
         logLevel: kDebugMode ? .warn : .error,
       ),
     );
@@ -795,11 +762,18 @@ class PlPlayerController with BlockConfigMixin {
         hwdec: hwdec,
       ),
     );
+    // await player.setAudioTrack(.auto());
 
     _startListeners(player.platform!.maybeAsNativePlayer);
 
     return player;
   }
+
+  Map<String, String>? _buffer;
+  Map<String, String> get buffer =>
+      _buffer ??= Pref.initBuffer(_playbackSpeed.value);
+  Map<String, String>? _liveBuffer;
+  Map<String, String> get liveBuffer => _liveBuffer ??= Pref.initLiveBuffer();
 
   // 配置播放器
   Future<void> _createVideoController(
@@ -808,9 +782,7 @@ class PlPlayerController with BlockConfigMixin {
     Volume? volume,
   ) async {
     isBuffering.value = false;
-    buffered.value = 0;
     _heartDuration = 0;
-    // 初始化时清空弹幕，防止上次重叠
     danmakuController?.clear();
 
     var player = _videoPlayerController;
@@ -819,7 +791,7 @@ class PlPlayerController with BlockConfigMixin {
       player = await _initPlayer();
       if (_playerCount == 0) {
         _removeListeners();
-        player.dispose();
+        await player.dispose();
         player = null;
         _videoController = null;
         return;
@@ -831,6 +803,16 @@ class PlPlayerController with BlockConfigMixin {
     }
 
     final Map<String, String> extras = {};
+
+    if (dataSource is FileSource) {
+      extras['cache'] = 'no';
+    } else {
+      if (isLive) {
+        extras.addAll(liveBuffer);
+      } else {
+        extras.addAll(buffer);
+      }
+    }
 
     String video = dataSource.videoSource;
     if (dataSource.audioSource case final audio? when (audio.isNotEmpty)) {
@@ -856,10 +838,7 @@ class PlPlayerController with BlockConfigMixin {
                   Map.fromEntries(
                     i.group(1)!.split(':').map((item) {
                       final parts = item.split('=');
-                      return MapEntry(
-                        parts[0].toLowerCase(),
-                        num.parse(parts[1]),
-                      );
+                      return MapEntry(parts[0].toLowerCase(), num.parse(parts[1]));
                     }),
                   ),
                 )}',
@@ -895,15 +874,16 @@ class PlPlayerController with BlockConfigMixin {
       return null;
     }
     if (_videoPlayerController == null) {
+      // SmartDialog.showToast('视频播放器为空，请重新进入本页面');
       return false;
     }
-    if (dataSource.videoSource.isEmpty) {
+    if (dataSource.videoSource.isNullOrEmpty) {
       SmartDialog.showToast('视频源为空，请重新进入本页面');
       return false;
     }
     String? audioUri;
     if (!isLive) {
-      if (dataSource.audioSource == null || dataSource.audioSource!.isEmpty) {
+      if (dataSource.audioSource.isNullOrEmpty) {
         SmartDialog.showToast('音频源为空');
       } else {
         audioUri = Platform.isWindows
@@ -923,12 +903,13 @@ class PlPlayerController with BlockConfigMixin {
     await _videoPlayerController!.open(
       Media(
         dataSource.videoSource,
-        start: positionDuration,
+        start: Duration(milliseconds: positionInMilliseconds),
         extras: audioUri == null ? null : {'audio-files': '"$audioUri"'},
       ),
       play: true,
     );
     return true;
+    // seekTo(currentPos);
   }
 
   // 开始播放
@@ -943,10 +924,19 @@ class PlPlayerController with BlockConfigMixin {
       }
     }
     _initVideoFit();
+    // if (_looping) {
+    //   await setLooping(_looping);
+    // }
+
+    // 跳转播放
+    // if (seekTo != Duration.zero) {
+    //   await this.seekTo(seekTo);
+    // }
 
     // 自动播放
     if (_autoPlay) {
       playIfExists();
+      // await play(duration: duration);
     }
   }
 
@@ -972,19 +962,19 @@ class PlPlayerController with BlockConfigMixin {
       stream.playing.listen((bool playing) {
         WakelockPlus.toggle(enable: playing);
         if (playing) {
-          if (_shouldSetPip) {
+          if (_isAutoEnterPip) {
             if (_isCurrVideoPage) {
               enterPip(isAuto: true);
             } else {
               _disableAutoEnterPip();
             }
           }
-          playerStatus.value = PlayerStatus.playing;
+          playerStatus.value = .playing;
         } else {
           // 鸿蒙：退后台引发的暂停不取消自动画中画，否则该取消操作会与系统
           // 自动小窗的启动赛跑，导致自动小窗时灵时不灵（Android 的 PiP
           // auto-enter 与离开手势原子执行，无此问题）。仅在应用处于前台
-          //（用户主动暂停）时才取消。
+          // （用户主动暂停）时才取消。
           if (!OS.isHarmony ||
               WidgetsBinding.instance.lifecycleState ==
                   AppLifecycleState.resumed) {
@@ -1008,6 +998,7 @@ class PlPlayerController with BlockConfigMixin {
           // 同步鸿蒙小窗控制面板的播放/暂停图标
           Floating().updatePipControlStatus(playing: playing);
         }
+
         videoPlayerServiceHandler?.onStatusChange(
           playerStatus.value,
           isBuffering.value,
@@ -1015,56 +1006,49 @@ class PlPlayerController with BlockConfigMixin {
         );
 
         for (final element in _statusListeners) {
-          element(playing ? PlayerStatus.playing : PlayerStatus.paused);
+          element(playing ? .playing : .paused);
         }
 
         final seconds = videoPlayerController!.state.position.inSeconds;
         if (seconds != 0) {
-          makeHeartBeat(seconds, type: HeartBeatType.status);
+          makeHeartBeat(seconds, type: .status);
         }
       }),
 
       ///completed
       stream.completed.listen((bool completed) {
         if (completed) {
-          playerStatus.value = PlayerStatus.completed;
+          playerStatus.value = .completed;
 
           for (final element in _statusListeners) {
-            element(PlayerStatus.completed);
+            element(.completed);
           }
 
-          makeHeartBeat(-1, type: HeartBeatType.completed);
+          makeHeartBeat(-1, type: .completed);
         }
       }),
 
       /// position
-      stream.position.listen((Duration event) {
-        final posInSeconds = event.inSeconds;
+      stream.position.listen((Duration position) {
+        final posInSeconds = position.inSeconds;
 
-        positionDuration = event;
-        if (posInSeconds != position.value) {
+        if (posInSeconds != this.position.value) {
           if (!isSeeking.value) {
-            position.value = posInSeconds;
+            this.position.value = posInSeconds;
           }
-        }
-        if (!_isSliderMoving) {
-          sliderPosition = event;
-          updateSliderPositionSecond();
-        }
 
-        videoPlayerServiceHandler?.onPositionChange(event);
+          videoPlayerServiceHandler?.onPositionChange(position);
 
-        makeHeartBeat(posInSeconds);
+          makeHeartBeat(posInSeconds);
+        }
 
         for (final element in _positionListeners) {
-          element(event);
+          element(position);
         }
       }),
       stream.duration.listen(updateDuration),
       stream.buffer.listen((Duration buffer) {
         buffered.value = buffer.inSeconds;
-        bufferedDuration.value = buffer;
-        updateBufferedSecond();
       }),
       stream.buffering.listen((bool buffering) {
         isBuffering.value = buffering;
@@ -1105,6 +1089,12 @@ class PlPlayerController with BlockConfigMixin {
             const Duration(milliseconds: 10000),
             () {
               Future.delayed(const Duration(milliseconds: 3000), () {
+                // if (kDebugMode) {
+                //   debugPrint("isBuffering.value: ${isBuffering.value}");
+                // }
+                // if (kDebugMode) {
+                //   debugPrint("_buffered.value: ${_buffered.value}");
+                // }
                 if (isBuffering.value && buffered.value == 0) {
                   SmartDialog.showToast(
                     '视频链接打开失败，重试中',
@@ -1125,23 +1115,9 @@ class PlPlayerController with BlockConfigMixin {
             return;
           }
           Utils.reportError(event);
+          // SmartDialog.showToast('视频加载错误, $event');
         }
       }),
-      // 媒体通知监听
-      if (videoPlayerServiceHandler != null) ...[
-        playerStatus.listen((PlayerStatus event) {
-          videoPlayerServiceHandler!.onStatusChange(
-            event,
-            isBuffering.value,
-            isLive,
-          );
-        }),
-        position.listen((int event) {
-          videoPlayerServiceHandler!.onPositionChange(
-            Duration(seconds: event),
-          );
-        }),
-      ],
     ];
   }
 
@@ -1149,11 +1125,8 @@ class PlPlayerController with BlockConfigMixin {
   void _removeListeners() {
     _stallWatchdog?.cancel();
     _stallWatchdog = null;
-    if (OS.isHarmony) {
-      if (Floating().onPipAction == _onPipAction) {
-        Floating().onPipAction = null;
-      }
-      Floating().onPipModeChanged = null;
+    if (Floating().onPipAction == _onPipAction) {
+      Floating().onPipAction = null;
     }
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions?.clear();
@@ -1165,8 +1138,7 @@ class PlPlayerController with BlockConfigMixin {
     switch (event) {
       case 'playbackStateChanged':
         // status: 1=请求播放，0=请求暂停；缺省时按当前状态取反
-        final wantPlay =
-            status == null ? !playerStatus.isPlaying : status == 1;
+        final wantPlay = status == null ? !playerStatus.isPlaying : status == 1;
         if (wantPlay) {
           play();
         } else {
@@ -1187,12 +1159,12 @@ class PlPlayerController with BlockConfigMixin {
     _stallWatchdog = Timer.periodic(const Duration(milliseconds: 1200), (_) {
       if (!playerStatus.isPlaying ||
           isBuffering.value ||
-          positionDuration == Duration.zero) {
+          positionInMilliseconds == 0) {
         _stallTicks = 0;
         _stallLastPosition = null;
         return;
       }
-      if (positionDuration == _stallLastPosition) {
+      if (positionInMilliseconds == _stallLastPosition) {
         _stallTicks++;
         // 连续约 2.4s 声称播放中却毫无进展：音频输出已被系统暂停。
         // 同步为暂停态，让按钮显示"播放"，恢复逻辑见 play()。
@@ -1204,7 +1176,7 @@ class PlPlayerController with BlockConfigMixin {
         }
       } else {
         _stallTicks = 0;
-        _stallLastPosition = positionDuration;
+        _stallLastPosition = positionInMilliseconds;
       }
     });
   }
@@ -1242,6 +1214,7 @@ class PlPlayerController with BlockConfigMixin {
     if (duration.value != 0) {
       seek();
     } else {
+      // if (kDebugMode) debugPrint('seek duration else');
       _subForSeek?.cancel();
       _subForSeek = duration.listen((_) {
         seek();
@@ -1290,6 +1263,7 @@ class PlPlayerController with BlockConfigMixin {
     controls = !hideControls;
     // repeat为true，将从头播放
     if (repeat) {
+      // await seekTo(Duration.zero);
       await seekTo(Duration.zero, isSeek: false);
     }
 
@@ -1313,6 +1287,7 @@ class PlPlayerController with BlockConfigMixin {
     audioSessionHandler?.setActive(true);
 
     playerStatus.value = PlayerStatus.playing;
+    // screenManager.setOverlays(false);
   }
 
   /// 暂停播放
@@ -1367,43 +1342,11 @@ class PlPlayerController with BlockConfigMixin {
   void hideTaskControls() {
     _timer?.cancel();
     _timer = Timer(showControlDuration, () {
-      if (!_isSliderMoving && !tripling) {
+      if (!isSeeking.value && !tripling) {
         controls = false;
       }
       _timer = null;
     });
-  }
-
-  /// 调整播放时间
-  void onChangedSlider(int v) {
-    sliderPosition = Duration(seconds: v);
-    updateSliderPositionSecond();
-  }
-
-  void onChangedSliderStart([Duration? value]) {
-    if (value != null) {
-      sliderTempPosition.value = value;
-    }
-    _isSliderMoving = true;
-  }
-
-  bool? cancelSeek;
-  bool? hasToast;
-
-  void onUpdatedSliderProgress(Duration value) {
-    sliderTempPosition.value = value;
-    sliderPosition = value;
-    updateSliderPositionSecond();
-  }
-
-  void onChangedSliderEnd() {
-    if (cancelSeek != true) {
-      feedBack();
-    }
-    cancelSeek = null;
-    hasToast = null;
-    _isSliderMoving = false;
-    hideTaskControls();
   }
 
   void onSeekEnd() {
@@ -1424,14 +1367,19 @@ class PlPlayerController with BlockConfigMixin {
 
   final double maxVolume = PlatformUtils.isDesktop ? Pref.maxVolume : 1.0;
   Future<void> setVolume(double volume, {bool showIndicator = true}) async {
-    if (this.volume.value != volume) {
+    if (this.volume.value != volume ||
+        (PlatformUtils.isMobile &&
+            await FlutterVolumeController.getVolume() != this.volume.value)) {
       this.volume.value = volume;
       try {
         if (PlatformUtils.isDesktop) {
           await _videoPlayerController!.setVolume(volume * 100);
+          actualVolume.value = volume;
         } else {
           FlutterVolumeController.updateShowSystemUI(false);
           await FlutterVolumeController.setVolume(volume);
+          actualVolume.value =
+              await FlutterVolumeController.getVolume() ?? actualVolume.value;
         }
       } catch (err) {
         if (kDebugMode) debugPrint(err.toString());
@@ -1509,6 +1457,7 @@ class PlPlayerController with BlockConfigMixin {
         );
       }
     } else {
+      // if (kDebugMode) debugPrint('$playbackSpeed');
       longPressStatus.value = val;
       await setPlaybackSpeed(lastPlaybackSpeed);
     }
@@ -1540,11 +1489,11 @@ class PlPlayerController with BlockConfigMixin {
   }
 
   void onForward(Duration duration) {
-    onForwardBackward(positionDuration + duration);
+    onForwardBackward(videoPlayerController!.state.position + duration);
   }
 
   void onBackward(Duration duration) {
-    onForwardBackward(positionDuration - duration);
+    onForwardBackward(videoPlayerController!.state.position - duration);
   }
 
   void onForwardBackward(Duration duration) {
@@ -1584,7 +1533,7 @@ class PlPlayerController with BlockConfigMixin {
     controls = !val;
   }
 
-  void toggleFullScreen(bool val) {
+  void _setFullScreen(bool val) {
     isFullScreen.value = val;
     updateSubtitleStyle();
     if (!OS.isHarmony) return;
@@ -1597,70 +1546,92 @@ class PlPlayerController with BlockConfigMixin {
   }
 
   double screenRatio = 0.0;
-  late bool isManualFS = true;
+  bool isManualFS = true;
   late final FullScreenMode mode = Pref.fullScreenMode;
   late final horizontalScreen = Pref.horizontalScreen;
+  late final removeSafeArea = Pref.removeSafeArea;
+
+  Future<void>? changeOrientation({
+    required bool isVertical,
+    DeviceOrientation? orientation,
+  }) {
+    if (orientation == null && mode == .none) {
+      return null;
+    }
+    if (orientation == null && mode == .gravity) {
+      // 上游的 gravity 依赖方向监听器主动转屏，鸿蒙无该插件，改为放开四方向交给系统
+      return OS.isHarmony ? harmonyFullAutoMode() : null;
+    }
+    if (orientation == null &&
+        (mode == .vertical ||
+            (mode == .auto && isVertical) ||
+            (mode == .ratio && (isVertical || screenRatio < kScreenRatio)))) {
+      return portraitUpMode();
+    } else {
+      // 鸿蒙拿不到设备朝向（无 native_device_orientation），不能像下面那样锁定单一
+      // 横屏方向，否则只能朝一边转。交给系统在左右横屏间按重力自动切换。
+      if (OS.isHarmony) {
+        return harmonyLandscapeAutoMode();
+      }
+      // https://github.com/flutter/flutter/issues/73651
+      // https://github.com/flutter/flutter/issues/183708
+      if (Platform.isAndroid) {
+        if ((orientation ?? _orientation) == .landscapeRight) {
+          return landscapeRightMode();
+        } else {
+          return landscapeLeftMode();
+        }
+      } else {
+        if (orientation == .landscapeLeft) {
+          return landscapeLeftMode();
+        } else {
+          return landscapeRightMode();
+        }
+      }
+    }
+  }
 
   // 全屏
-  bool fsProcessing = false;
+  bool _fsProcessing = false;
   Future<void> triggerFullScreen({
     bool status = true,
     bool inAppFullScreen = false,
+    DeviceOrientation? orientation,
     bool isManualFS = true,
-    FullScreenMode? mode,
   }) async {
     if (isDesktopPip) return;
     if (isFullScreen.value == status) return;
 
-    if (fsProcessing) {
-      return;
-    }
-    fsProcessing = true;
-    toggleFullScreen(status);
+    if (_fsProcessing) return;
+    _fsProcessing = true;
+    this.isManualFS = isManualFS;
     try {
-      mode ??= this.mode;
-      this.isManualFS = isManualFS;
-
       if (status) {
         if (PlatformUtils.isMobile) {
-          hideStatusBar();
-          if (mode == FullScreenMode.none) {
-            return;
-          }
-          if (mode == FullScreenMode.gravity) {
-            await fullAutoModeForceSensor();
-            return;
-          }
-          late final size = MediaQuery.sizeOf(Get.context!);
-          if ((mode == FullScreenMode.vertical ||
-              (mode == FullScreenMode.auto && isVertical) ||
-              (mode == FullScreenMode.ratio &&
-                  (isVertical ||
-                      size.height / size.width < kScreenRatio)))) {
-            await verticalScreenForTwoSeconds();
-          } else {
-            await landscape();
-          }
+          hideSystemBar();
+          await changeOrientation(
+            isVertical: isVertical,
+            orientation: orientation,
+          );
         } else {
-          await enterDesktopFullscreen(inAppFullScreen: inAppFullScreen);
+          await enterDesktopFullScreen(inAppFullScreen: inAppFullScreen);
         }
       } else {
         if (PlatformUtils.isMobile) {
-          showStatusBar();
-          if (mode == FullScreenMode.none) {
+          if (!removeSafeArea) {
+            showSystemBar();
+          }
+          if (orientation == null && mode == .none) {
             return;
           }
-          if (!horizontalScreen) {
-            await verticalScreenForTwoSeconds();
-          } else {
-            await autoScreen();
-          }
+          await resetScreenRotation();
         } else {
-          await exitDesktopFullscreen();
+          await exitDesktopFullScreen();
         }
       }
     } finally {
-      fsProcessing = false;
+      _setFullScreen(status);
+      _fsProcessing = false;
     }
   }
 
@@ -1683,7 +1654,7 @@ class PlPlayerController with BlockConfigMixin {
   // 记录播放记录
   Future<void>? makeHeartBeat(
     int progress, {
-    HeartBeatType type = HeartBeatType.playing,
+    HeartBeatType type = .playing,
     bool isManual = false,
     dynamic aid,
     dynamic bvid,
@@ -1714,17 +1685,17 @@ class PlPlayerController with BlockConfigMixin {
     }
 
     switch (type) {
-      case HeartBeatType.playing:
+      case .playing:
         if (progress - _heartDuration >= 5) {
           _heartDuration = progress;
           return send();
         }
-      case HeartBeatType.status:
+      case .status:
         if (progress - _heartDuration >= 2) {
           _heartDuration = progress;
           return send();
         }
-      case HeartBeatType.completed:
+      case .completed:
         if (playerStatus.isCompleted &&
             (durationInMilliseconds - positionInMilliseconds) <= 1000) {
           progress = -1;
@@ -1751,38 +1722,64 @@ class PlPlayerController with BlockConfigMixin {
     });
   }
 
-  bool _isCloseAll = false;
-  bool get isCloseAll => _isCloseAll;
-  set isCloseAll(bool v) => _isCloseAll = v;
+  // isCloseAll 由外部页面直接置位（新 ohos 提交的写法），故为公开字段
+  bool isCloseAll = false;
+
+  Future<void>? resetScreenRotation() {
+    if (horizontalScreen) {
+      return fullMode();
+    } else {
+      return portraitUpMode();
+    }
+  }
 
   void onCloseAll() {
-    _isCloseAll = true;
-    dispose();
+    isCloseAll = true;
+    // dispose 已改为异步（退后台清内存），这里不阻塞路由返回
+    unawaited(dispose());
     Get.until((route) => route.isFirst);
   }
 
-  void dispose() {
+  Future<void> dispose() async {
     // 每次减1，最后销毁
+    resetScreenRotation();
     cancelLongPressTimer();
     _cancelSubForSeek();
-    if (!_isCloseAll && _playerCount > 1) {
+    if (!isCloseAll && _playerCount > 1) {
       _playerCount -= 1;
       _heartDuration = 0;
-      if (!_isPreviousVideoPage) {
-        pause();
-      }
       return;
     }
 
     _playerCount = 0;
+    if (removeSafeArea) {
+      showSystemBar();
+    }
     danmakuController = null;
+    _stopOrientationListener();
     _disableAutoEnterPip();
     setPlayCallBack(null);
     dmState.clear();
     if (showSeekPreview) {
       _clearPreview();
     }
+    if (Platform.isAndroid) {
+      AndroidHelper$ToDart.onUserLeaveHint?.release();
+      AndroidHelper$ToDart.onUserLeaveHint = null;
+    }
     _timer?.cancel();
+    // _position.close();
+    // _playerEventSubs?.cancel();
+    // _sliderPosition.close();
+    // _sliderTempPosition.close();
+    // _isSliderMoving.close();
+    // _duration.close();
+    // _buffered.close();
+    // _showControls.close();
+    // _controlsLock.close();
+
+    // playerStatus.close();
+    // dataStatus.close();
 
     if (PlatformUtils.isDesktop && isAlwaysOnTop.value) {
       windowManager.setAlwaysOnTop(false);
@@ -1797,7 +1794,7 @@ class PlPlayerController with BlockConfigMixin {
     if (kDebugMode) {
       debugPrint('dispose player');
     }
-    _videoPlayerController?.dispose();
+    await _videoPlayerController?.dispose();
     _videoPlayerController = null;
     _videoController = null;
     _instance = null;
@@ -1805,16 +1802,16 @@ class PlPlayerController with BlockConfigMixin {
     HarmonyChannel.releaseContinuation(this);
   }
 
-  static void updatePlayCount() {
+  static Future<void> updatePlayCount() async {
     if (_instance?._playerCount == 1) {
-      _instance?.dispose();
+      await _instance?.dispose();
     } else {
       _instance?._playerCount -= 1;
     }
   }
 
   void setContinuePlayInBackground() {
-    continuePlayInBackground.toggle();
+    continuePlayInBackground.value = !continuePlayInBackground.value;
     if (!tempPlayerConf) {
       setting.put(
         SettingBoxKey.continuePlayInBackground,
@@ -1824,7 +1821,7 @@ class PlPlayerController with BlockConfigMixin {
   }
 
   void setOnlyPlayAudio() {
-    onlyPlayAudio.toggle();
+    onlyPlayAudio.value = !onlyPlayAudio.value;
     videoPlayerController?.setVideoTrack(
       onlyPlayAudio.value ? VideoTrack.no() : VideoTrack.auto(),
     );
@@ -1865,68 +1862,85 @@ class PlPlayerController with BlockConfigMixin {
     videoShot = await VideoHttp.videoshot(bvid: bvid, cid: cid!);
   }
 
-  void takeScreenshot() {
+  Future<void> takeScreenshot() async {
     SmartDialog.showToast('截图中');
-    videoPlayerController?.screenshot(format: 'image/png').then((value) {
-      if (value != null) {
-        SmartDialog.showToast('点击弹窗保存截图');
-        showDialog(
-          context: Get.context!,
-          builder: (context) => GestureDetector(
-            onTap: () {
-              Get.back();
-              ImageUtils.saveByteImg(
-                bytes: value,
-                fileName: 'screenshot_${ImageUtils.time}',
-              );
-            },
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: min(MediaQuery.widthOf(context) / 3, 350),
+    // 鸿蒙 media_kit fork 的 screenshot 返回 Uint8List（上游 fork 返回 ui.Image）
+    final bytes = await videoPlayerController?.screenshot(format: 'image/png');
+    if (bytes == null) {
+      SmartDialog.showToast('截图失败');
+      return;
+    }
+    final time = DurationUtils.formatDuration(
+      positionInMilliseconds / 1000,
+    ).replaceAll(':', '-');
+    SmartDialog.showToast('点击弹窗保存截图');
+    showDialog(
+      context: Get.context!,
+      builder: (context) => GestureDetector(
+        onTap: () {
+          Get.back();
+          ImageUtils.saveByteImg(
+            bytes: bytes,
+            fileName: 'screenshot_${cid}_$time',
+          );
+        },
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: min(MediaQuery.widthOf(context) / 3, 350),
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    width: 5,
+                    color: ColorScheme.of(context).surface,
                   ),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        width: 5,
-                        color: ColorScheme.of(context).surface,
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: Image.memory(value),
-                    ),
-                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: Image.memory(bytes),
                 ),
               ),
             ),
           ),
-        );
-      } else {
-        SmartDialog.showToast('截图失败');
-      }
-    });
+        ),
+      ),
+    );
   }
 
-  bool onPopInvokedWithResult(bool didPop, Object? result) {
-    if ((Platform.isAndroid || OS.isHarmony) && didPop) {
-      _disableAutoEnterPipIfNeeded();
+  void onPopInvokedWithResult(bool didPop, Object? result) {
+    if (didPop) {
+      if (playerStatus.isPlaying) {
+        pause();
+      }
+
+      setPlayCallBack(null);
+
+      if ((Platform.isAndroid || OS.isHarmony) && _playerCount <= 1) {
+        _disableAutoEnterPip();
+        if (!setSystemBrightness) {
+          ScreenBrightnessPlatform.instance.resetApplicationScreenBrightness();
+        }
+      }
+
+      return;
     }
+
     if (controlsLock.value) {
       onLockControl(false);
-      return true;
+      return;
     }
     if (isDesktopPip) {
       exitDesktopPip();
-      return true;
+      return;
     }
     if (isFullScreen.value) {
       triggerFullScreen(status: false);
-      return true;
+      return;
     }
-    return false;
+    Get.back();
   }
 }

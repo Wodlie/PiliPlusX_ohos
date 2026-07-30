@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:math';
 
 import 'package:PiliPlus/common/widgets/badge.dart';
@@ -7,7 +7,6 @@ import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero.dart';
 import 'package:PiliPlus/common/widgets/marquee.dart';
-import 'package:PiliPlus/common/widgets/selection_text.dart';
 import 'package:PiliPlus/common/widgets/sliver/sliver_to_box_adapter.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/music.dart';
@@ -67,7 +66,7 @@ class _MusicDetailPageState extends CommonDynPageState<MusicDetailPage> {
             : _buildBody(),
       ),
     );
-    return fabAnimWrapper(child: child);
+    return fabAnimWrapper(child);
   }
 
   PreferredSizeWidget _buildAppBar() => AppBar(
@@ -554,7 +553,7 @@ class _MusicDetailPageState extends CommonDynPageState<MusicDetailPage> {
                 ],
               ),
               const SizedBox(height: 10),
-              SelectionText(
+              SelectableText(
                 [
                   if (!(item.originArtist ?? item.originArtistList)
                       .isNullOrEmpty)

@@ -1,41 +1,40 @@
 import 'dart:io' show Directory, File;
 
-import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:cached_network_image_ce/cached_network_image.dart';
-import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+/// 鸿蒙分支使用 pub.dev 上的 cached_network_image_ce，它没有上游 fork 的
+/// `DefaultCacheManager.init` / `getTotalLength` / `cacheDir` / `getSingleFile`，
+/// 因此这里保留 ohos 原本基于临时目录统计的实现；getSingleFile 由
+/// utils/cache_manager_ext.dart 提供
+/// 以便调用点与上游保持一致。
 abstract final class CacheManager {
-  /// Singleton DefaultCacheManager instance for file cache lookups.
-  /// Uses the pub.dev DefaultCacheManager which lazily initializes.
-  static final DefaultCacheManager manager = DefaultCacheManager();
+  static late final DefaultCacheManager manager;
+
+  static Future<void> ensureInitialized() async {
+    manager = DefaultCacheManager(
+      maxNrOfCacheObjects: Pref.maxCacheSize.toInt(),
+    );
+  }
 
   // 获取缓存目录
   @pragma('vm:notify-debugger-on-exception')
-  static Future<int> loadApplicationCache() async {
+  static Future<int> loadApplicationCache([
+    final num maxSize = double.infinity,
+  ]) async {
     try {
+      final Directory tempDirectory = await getTemporaryDirectory();
       if (PlatformUtils.isDesktop) {
-        return _legacyCacheSize();
+        final dir = Directory('${tempDirectory.path}/cached_network_image_ce');
+        if (dir.existsSync()) {
+          return await getTotalSizeOfFilesInDir(dir, maxSize);
+        }
+        return 0;
       }
-
-      final Directory tempDirectory = await getTemporaryDirectory();
       if (tempDirectory.existsSync()) {
-        return await getTotalSizeOfFilesInDir(tempDirectory);
-      }
-    } catch (_) {}
-    return 0;
-  }
-
-  /// Fallback cache size calculation for desktop platforms where
-  /// DefaultCacheManager's cache directory may differ from temp.
-  static Future<int> _legacyCacheSize() async {
-    try {
-      final Directory tempDirectory = await getTemporaryDirectory();
-      final dir = Directory('${tempDirectory.path}/cached_network_image_ce');
-      if (dir.existsSync()) {
-        return await getTotalSizeOfFilesInDir(dir);
+        return await getTotalSizeOfFilesInDir(tempDirectory, maxSize);
       }
     } catch (_) {}
     return 0;
@@ -51,7 +50,7 @@ abstract final class CacheManager {
     await for (final child in file.list(recursive: true)) {
       if (child is File) {
         total += await child.length();
-        if (total >= maxSize) break;
+        if (total >= maxSize) return total;
       }
     }
     return total;
@@ -74,40 +73,19 @@ abstract final class CacheManager {
   static Future<void> clearLibraryCache() async {
     try {
       await manager.emptyCache();
-      try {
-        final blockedDir = Directory(
-          path.join(appSupportDirPath, 'blocked_images'),
-        );
-        if (blockedDir.existsSync()) {
-          await blockedDir.delete(recursive: true);
-        }
-      } catch (_) {}
-      if (PlatformUtils.isDesktop) return;
-
       final tempDirectory = await getTemporaryDirectory();
+      if (PlatformUtils.isDesktop) {
+        final dir = Directory('${tempDirectory.path}/cached_network_image_ce');
+        if (dir.existsSync()) {
+          await dir.delete(recursive: true);
+        }
+        return;
+      }
       if (tempDirectory.existsSync()) {
         await for (final file in tempDirectory.list(recursive: false)) {
-          if (file is Directory &&
-              path.basename(file.path) == 'cached_network_image_ce') {
-            continue;
-          }
           await file.delete(recursive: true);
         }
       }
     } catch (_) {}
-  }
-
-  static Future<void> autoClearCache() async {
-    if (Pref.autoClearCache) {
-      await clearLibraryCache();
-    } else {
-      final maxCacheSize = Pref.maxCacheSize;
-      if (maxCacheSize != 0) {
-        final currCache = await loadApplicationCache();
-        if (currCache >= maxCacheSize) {
-          await clearLibraryCache();
-        }
-      }
-    }
   }
 }

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/http/api.dart';
-import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/error_msg.dart';
 import 'package:PiliPlus/http/init.dart';
@@ -28,7 +27,6 @@ import 'package:PiliPlus/models_new/dynamic/dyn_topic_top/top_details.dart';
 import 'package:PiliPlus/models_new/dynamic/dyn_topic_top/topic_item.dart';
 import 'package:PiliPlus/models_new/followee_votes/vote.dart';
 import 'package:PiliPlus/utils/accounts.dart';
-import 'package:PiliPlus/utils/accounts/request_identity_adapter.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/wbi_sign.dart';
 import 'package:dio/dio.dart';
@@ -42,13 +40,8 @@ abstract final class DynamicsHttp {
     DynamicsTabType type = .all,
   }) async {
     Map<String, dynamic> data = {
-      if (type == .up)
-        'host_mid': hostMid
-      else ...{
-        'type': type.name,
-        'timezone_offset': '-480',
-      },
-      'offset': offset,
+      if (type == .up) 'host_mid': hostMid else 'type': type.name,
+      'offset': ?offset,
       'features': Constants.dynFeatures,
     };
     final res = await Request().get(Api.followDynamic, queryParameters: data);
@@ -61,7 +54,7 @@ abstract final class DynamicsHttp {
           tempBannedList: tempBannedList,
         );
         if (data.loadNext == true) {
-          return followDynamic(
+          return await followDynamic(
             type: type,
             offset: data.offset,
             hostMid: hostMid,
@@ -96,7 +89,7 @@ abstract final class DynamicsHttp {
     final res = await Request().get(
       Api.dynUplist,
       queryParameters: {
-        'offset': offset,
+        'offset': ?offset,
         'platform': 'web',
         'web_location': 333.1365,
       },
@@ -105,6 +98,29 @@ abstract final class DynamicsHttp {
       return Success(FollowUpModel.fromUpList(res.data['data']));
     } else {
       return Error(res.data['message']);
+    }
+  }
+
+  static Future<LoadingState<FollowUpModel>> followings({
+    int? vmid,
+    int? pn,
+    int ps = 20,
+    String orderType = '', // ''=>最近关注，'attention'=>最常访问
+  }) async {
+    final res = await Request().get(
+      Api.followings,
+      queryParameters: {
+        'vmid': vmid,
+        'pn': pn,
+        'ps': ps,
+        'order': 'desc',
+        'order_type': orderType,
+      },
+    );
+    if (res.data['code'] == 0) {
+      return Success(FollowUpModel.fromFollowList(res.data['data']));
+    } else {
+      return Error(errorMsg[res.data['code']] ?? res.data['message']);
     }
   }
 
@@ -174,16 +190,12 @@ abstract final class DynamicsHttp {
     String? title,
     Map? attachCard,
   }) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
     final res = await Request().post(
       Api.createDynamic,
       queryParameters: {
         'platform': 'web',
         'csrf': Accounts.main.csrf,
-        ...identity.webDeviceQueryFields(spmid: '333.999'),
+        'x-bili-device-req-json': '{"platform": "web", "device": "pc"}',
         'x-bili-web-req-json': '{"spm_id": "333.999"}',
       },
       data: {
@@ -257,10 +269,6 @@ abstract final class DynamicsHttp {
     dynamic type,
     bool clearCookie = false,
   }) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
     final res = await Request().get(
       Api.dynamicDetail,
       queryParameters: {
@@ -271,7 +279,8 @@ abstract final class DynamicsHttp {
         'features': Constants.dynFeatures,
         'gaia_source': 'Athena',
         'web_location': '333.1330',
-        ...identity.webDeviceQueryFields(spmid: '333.1330'),
+        'x-bili-device-req-json':
+            '{"platform":"web","device":"pc","spmid":"333.1330"}',
         if (!clearCookie && Accounts.main.isLogin) 'csrf': Accounts.main.csrf,
       },
       options: clearCookie ? ReplyHttp.options : null,
@@ -386,7 +395,10 @@ abstract final class DynamicsHttp {
       queryParameters: {'vote_id': voteId},
     );
     if (res.data['code'] == 0) {
-      return Success(VoteInfo.fromSeparatedJson(res.data['data']));
+      final voteInfo = VoteInfo.fromSeparatedJson(res.data['data']);
+      return voteInfo.voteId == null
+          ? const Error('无效的投票id')
+          : Success(voteInfo);
     } else {
       return Error(res.data['message']);
     }
@@ -444,7 +456,7 @@ abstract final class DynamicsHttp {
 
   static Future<LoadingState<TopicCardList?>> topicFeed({
     required Object topicId,
-    required String offset,
+    String? offset,
     required int sortBy,
   }) async {
     final res = await Request().get(
@@ -452,25 +464,27 @@ abstract final class DynamicsHttp {
       queryParameters: {
         'topic_id': topicId,
         'sort_by': sortBy,
-        'offset': offset,
+        'offset': ?offset,
         'page_size': 20,
         'source': 'Web',
         'features': Constants.dynFeatures,
       },
     );
     if (res.data['code'] == 0) {
-      TopicCardList? data = res.data['data']?['topic_card_list'] == null
-          ? null
-          : TopicCardList.fromJson(res.data['data']['topic_card_list']);
-      return Success(data);
+      final list = res.data['data']?['topic_card_list'];
+      if (list == null) {
+        return const Success(null);
+      } else {
+        return Success(TopicCardList.fromJson(list));
+      }
     } else {
       return Error(res.data['message']);
     }
   }
 
   static Future<LoadingState<TopicCardList?>> topicFold({
-    required String topicId,
-    required String sortBy,
+    required Object topicId,
+    required int sortBy,
   }) async {
     final res = await Request().get(
       Api.topicFold,
@@ -480,7 +494,12 @@ abstract final class DynamicsHttp {
       },
     );
     if (res.data['code'] == 0) {
-      return Success(TopicCardList.fromJson(res.data['data']));
+      final list = res.data['data']?['topic_card_list'];
+      if (list == null) {
+        return const Success(null);
+      } else {
+        return Success(TopicCardList.fromJson(list));
+      }
     } else {
       return Error(res.data['message']);
     }
@@ -743,16 +762,13 @@ abstract final class DynamicsHttp {
   }) async {
     final uploadId =
         "${Accounts.main.mid}_${DateTime.now().millisecondsSinceEpoch ~/ 1000}_${Utils.random.nextInt(9000) + 1000}";
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
     final res = await Request().post(
       Api.editDyn,
       queryParameters: await WbiSign.makSign({
         'platform': 'web',
         'csrf': Accounts.main.csrf,
-        ...identity.webDeviceQueryFields(spmid: '333.1368'),
+        'x-bili-device-req-json':
+            '{"platform":"web","device":"pc","spmid":"333.1368"}',
         'w_dyn_req.upload_id': uploadId,
         'w_dyn_req.meta':
             '{"app_meta":{"from":"create.dynamic.web","mobi_app":"web"}}',
@@ -817,10 +833,6 @@ abstract final class DynamicsHttp {
     int? sortType,
     required int page,
   }) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
     final res = await Request().get(
       Api.bubble,
       queryParameters: {
@@ -830,7 +842,8 @@ abstract final class DynamicsHttp {
         'page_size': 20,
         'page_num': page,
         'web_location': 333.40165,
-        ...identity.webDeviceQueryFields(spmid: '333.40165'),
+        'x-bili-device-req-json':
+            '{"platform":"web","device":"pc","spmid":"333.40165"}',
       },
     );
     if (res.data['code'] == 0) {

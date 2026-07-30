@@ -64,13 +64,6 @@ class CreateReserveController extends GetxController {
           livePlanStartTime: livePlanStartTime,
         ),
       );
-      Get.back(
-        result: ReserveInfoData(
-          id: response,
-          title: title.value,
-          livePlanStartTime: livePlanStartTime,
-        ),
-      );
     } else {
       res.toast();
     }

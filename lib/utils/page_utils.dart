@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:PiliPlus/common/widgets/fractionally_sized_box.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/gallery_viewer.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero_dialog_route.dart';
 import 'package:PiliPlus/grpc/im.dart';
@@ -17,10 +18,9 @@ import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/pages/contact/view.dart';
 import 'package:PiliPlus/pages/fav_panel/view.dart';
 import 'package:PiliPlus/pages/share/view.dart';
+import 'package:PiliPlus/utils/extension/extension.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/extension/context_ext.dart';
-import 'package:PiliPlus/utils/extension/extension.dart';
-import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
@@ -30,8 +30,9 @@ import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/url_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
-import 'package:floating/floating.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:floating/floating.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
@@ -159,7 +160,8 @@ abstract final class PageUtils {
       ),
       builder: (BuildContext context) {
         final maxChildSize =
-            PlatformUtils.isMobile && !ContextExtensions(context).mediaQuerySize.isPortrait
+            PlatformUtils.isMobile &&
+                !ContextExtensions(context).mediaQuerySize.isPortrait
             ? 1.0
             : 0.7;
         return DraggableScrollableSheet(
@@ -214,6 +216,7 @@ abstract final class PageUtils {
   static Future<void> pushDynDetail(
     DynamicItemModel item, {
     bool isPush = false,
+    bool viewComment = false,
   }) async {
     feedBack();
 
@@ -235,6 +238,7 @@ abstract final class PageUtils {
           '/dynamicDetail',
           arguments: {
             'item': item,
+            if (viewComment) 'viewComment': true,
           },
         );
       }
@@ -278,12 +282,14 @@ abstract final class PageUtils {
         try {
           String bvid = archive.bvid!;
           String cover = archive.cover!;
-          int? cid = await SearchHttp.ab2c(bvid: bvid);
+          final res = await SearchHttp.ab2cWithDimension(bvid: bvid);
+          final cid = res?.cid;
           if (cid != null) {
             toVideoPage(
               bvid: bvid,
               cid: cid,
               cover: cover,
+              dimension: res!.dimension,
             );
           }
         } catch (err) {
@@ -337,13 +343,15 @@ abstract final class PageUtils {
         int aid = ugcSeason.aid!;
         String bvid = IdUtils.av2bv(aid);
         String cover = ugcSeason.cover!;
-        int? cid = await SearchHttp.ab2c(bvid: bvid);
+        final res = await SearchHttp.ab2cWithDimension(bvid: bvid);
+        final cid = res?.cid;
         if (cid != null) {
           toVideoPage(
             aid: aid,
             bvid: bvid,
             cid: cid,
             cover: cover,
+            dimension: res!.dimension,
           );
         }
         break;
@@ -481,8 +489,8 @@ abstract final class PageUtils {
   static Future<void>? showVideoBottomSheet(
     BuildContext context, {
     required Widget child,
-    required ValueGetter<bool> isFullScreen,
-    double? padding,
+    ValueGetter<EdgeInsets>? padding,
+    double maxWidth = 500,
   }) {
     if (!context.mounted) {
       return null;
@@ -490,27 +498,18 @@ abstract final class PageUtils {
     return Get.key.currentState!.push(
       PublishRoute(
         pageBuilder: (context, animation, secondaryAnimation) {
-          if (ContextExtensions(context).isPortrait) {
-            return SafeArea(
-              child: FractionallySizedBox(
-                heightFactor: 0.7,
-                widthFactor: 1.0,
-                alignment: Alignment.bottomCenter,
-                child: isFullScreen() && padding != null
-                    ? Padding(
-                        padding: EdgeInsets.only(bottom: padding),
-                        child: child,
-                      )
-                    : child,
-              ),
-            );
-          }
+          // 显式调用扩展，避免与 GetX 的同名 BuildContext 扩展产生歧义
+          final isPortrait = ContextExtensions(context).isPortrait;
           return SafeArea(
-            child: FractionallySizedBox(
-              widthFactor: 0.5,
-              heightFactor: 1.0,
-              alignment: Alignment.centerRight,
-              child: child,
+            child: CustomFractionallySizedBox(
+              maxWidth: maxWidth,
+              widthFactor: isPortrait ? 1.0 : 0.5,
+              heightFactor: isPortrait ? 0.7 : 1.0,
+              alignment: isPortrait ? .bottomCenter : .centerRight,
+              child: Padding(
+                padding: isPortrait ? padding?.call() ?? .zero : .zero,
+                child: child,
+              ),
             ),
           );
         },

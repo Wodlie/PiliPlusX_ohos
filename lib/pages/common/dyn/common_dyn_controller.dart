@@ -11,8 +11,6 @@ abstract class CommonDynController extends ReplyController<MainListReply>
   int get oid;
   int get replyType;
 
-  bool get canSort => false;
-
   late final RxBool showTitle = false.obs;
 
   late final horizontalPreview = Pref.horizontalPreview;
@@ -24,7 +22,7 @@ abstract class CommonDynController extends ReplyController<MainListReply>
   Future<LoadingState<MainListReply>> customGetData() => ReplyGrpc.mainList(
     type: replyType,
     oid: oid,
-    mode: mode.value,
+    mode: mode,
     cursorNext: cursorNext,
     offset: paginationReply?.nextOffset,
   );

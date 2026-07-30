@@ -12,10 +12,7 @@ include: package:flutter_lints/flutter.yaml
 analyzer:
   exclude:
     - lib/grpc/bilibili/**
-    # - lib/grpc/google/**
     # - lib/common/widgets/flutter/**
-    # context_menu parts depend on pages not yet ported (T24); remove after T24
-    - lib/common/widgets/context_menu/**
 
 formatter:
   trailing_commas: preserve

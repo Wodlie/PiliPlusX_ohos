@@ -173,9 +173,6 @@ abstract final class Api {
   // 楼中楼
   static const String replyReplyList = '/x/v2/reply/reply';
 
-  // 评论申诉
-  static const String replyAppealSubmit = '/x/v2/reply/appeal/submit';
-
   // 评论点赞
   static const String likeReply = '/x/v2/reply/action';
 
@@ -184,9 +181,6 @@ abstract final class Api {
   // 发表评论
   // https://github.com/SocialSisterYi/bilibili-API-collect/blob/master/docs/comment/action.md
   static const String replyAdd = '/x/v2/reply/add';
-
-  // 举报评论
-  static const String replyReport = '/x/v2/reply/report';
 
   // 删除评论
   // https://github.com/SocialSisterYi/bilibili-API-collect/blob/master/docs/comment/action.md
@@ -417,7 +411,7 @@ abstract final class Api {
 
   // github 获取最新版
   static const String latestApp =
-      'https://api.github.com/repos/Wodlie/PiliPlusX/releases';
+      'https://api.github.com/repos/dev4harmony/PiliPlus/releases';
 
   // 多少人在看
   // https://api.bilibili.com/x/player/online/total?aid=913663681&cid=1203559746&bvid=BV1MM4y1s7NZ&ts=56427838
@@ -1017,8 +1011,7 @@ abstract final class Api {
 
   static const String sortFollowTag = '/x/relation/tags/update_sort';
 
-  static const String dynReaction = '/x/polymer/web-dynamic/v1/detail/reaction';
+  static const String replyReport = '/x/v2/reply/report';
 
-  static const String liveFeedback =
-      '${HttpString.liveBaseUrl}/xlive/app-interface/v2/index/feedback';
+  static const String dynReaction = '/x/polymer/web-dynamic/v1/detail/reaction';
 }

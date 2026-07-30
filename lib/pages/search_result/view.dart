@@ -186,11 +186,6 @@ class _SearchResultPageState extends State<SearchResultPage>
                           searchType: item,
                           keyword: _searchResultController.keyword,
                         ),
-                        SearchType.media_hk_bangumi => SearchPgcPanel(
-                          tag: _tag,
-                          searchType: item,
-                          keyword: _searchResultController.keyword,
-                        ),
                       },
                     )
                     .toList(),

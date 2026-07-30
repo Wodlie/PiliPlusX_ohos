@@ -1,16 +1,10 @@
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as path;
 
 late final String tmpDirPath;
 
 late final String appSupportDirPath;
-
-@visibleForTesting
-void debugSetAppSupportDirPath(String value) {
-  appSupportDirPath = value;
-}
 
 late String downloadPath;
 

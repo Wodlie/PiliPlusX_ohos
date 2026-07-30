@@ -1,5 +1,3 @@
-import 'dart:math' show pi;
-
 import 'package:PiliPlus/common/skeleton/video_reply.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
@@ -23,11 +21,13 @@ import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:easy_debounce/easy_throttle.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
 
 enum DynType implements EnumWithLabel {
   reply('评论'),
-  reaction('赞与转发');
+  reaction('赞与转发')
+  ;
 
   @override
   final String label;
@@ -88,22 +88,14 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
     padding = MediaQuery.viewPaddingOf(context);
   }
 
-  @override
-  bool onNotification(UserScrollNotification notification) {
-    if (notification.metrics.axisDirection == .down) {
-      return super.onNotification(notification);
-    }
-    return false;
-  }
-
   Widget buildReplyHeader() {
     final secondary = theme.colorScheme.secondary;
     return SliverPinnedHeader(
       backgroundColor: theme.colorScheme.surface,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 2.5, 6, 2.5),
+        padding: const .fromLTRB(12, 2.5, 6, 2.5),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: .spaceBetween,
           children: [
             Obx(
               () {
@@ -115,27 +107,12 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
             ),
             TextButton.icon(
               style: Style.buttonStyle,
-              onPressed: controller.canSort
-                  ? controller.queryBySort
-                  : null,
-              icon: Icon(
-                Icons.sort,
-                size: 16,
-                color: controller.canSort
-                    ? secondary
-                    : theme.colorScheme.outline,
-              ),
+              onPressed: controller.queryBySort,
+              icon: Icon(Icons.sort, size: 16, color: secondary),
               label: Obx(
                 () => Text(
-                  controller.canSort
-                      ? controller.sortType.value.label
-                      : '排序不可用',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: controller.canSort
-                        ? secondary
-                        : theme.colorScheme.outline,
-                  ),
+                  controller.sortType.value.label,
+                  style: TextStyle(fontSize: 13, color: secondary),
                 ),
               ),
             ),
@@ -328,10 +305,7 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
         ),
       ),
     ),
-    icon: Transform.rotate(
-      angle: pi / 2,
-      child: const Icon(Icons.splitscreen, size: 19),
-    ),
+    icon: const Icon(CustomIcons.splitscreen_rotate_90, size: 19),
   );
 
   FloatingActionButtonLocation get floatingActionButtonLocation =>
@@ -340,7 +314,7 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
       : const NoBottomPaddingFabLocation();
 
   Widget get fabButton => Padding(
-    padding: EdgeInsets.only(bottom: padding.bottom + kFloatingActionButtonMargin),
+    padding: .only(bottom: padding.bottom + kFloatingActionButtonMargin),
     child: replyButton,
   );
 
@@ -359,4 +333,22 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
     tooltip: '评论',
     child: const Icon(Icons.reply),
   );
+
+  Widget fabAnimWrapper(Widget child) {
+    return NotificationListener<UserScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.axisDirection == .down) {
+          switch (notification.direction) {
+            case .forward:
+              showFab();
+            case .reverse:
+              hideFab();
+            default:
+          }
+        }
+        return false;
+      },
+      child: child,
+    );
+  }
 }

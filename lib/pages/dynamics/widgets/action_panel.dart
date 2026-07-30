@@ -1,3 +1,4 @@
+import 'package:PiliPlus/harmony_adapt/harmony_channel.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/pages/dynamics_repost/view.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
@@ -34,21 +35,29 @@ class ActionPanel extends StatelessWidget {
           child: Builder(
             builder: (context) {
               return TextButton.icon(
-                onPressed: () => showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  useSafeArea: true,
-                  builder: (_) => RepostPanel(
-                    item: item,
-                    onSuccess: () {
-                      int count = forward.count ?? 0;
-                      forward.count = count + 1;
-                      if (context.mounted) {
-                        (context as Element?)?.markNeedsBuild();
-                      }
-                    },
-                  ),
-                ),
+                onPressed: () {
+                  final wasVisible = HarmonyChannel.hdsBarVisible;
+                  HarmonyChannel.setShellBarsHidden(true);
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (_) => RepostPanel(
+                      item: item,
+                      onSuccess: () {
+                        int count = forward.count ?? 0;
+                        forward.count = count + 1;
+                        if (context.mounted) {
+                          (context as Element?)?.markNeedsBuild();
+                        }
+                      },
+                    ),
+                  ).then((_) {
+                    if (wasVisible) {
+                      HarmonyChannel.setShellBarsHidden(false);
+                    }
+                  });
+                },
                 icon: Icon(
                   FontAwesomeIcons.shareFromSquare,
                   size: 16,
@@ -67,7 +76,11 @@ class ActionPanel extends StatelessWidget {
         ),
         Expanded(
           child: TextButton.icon(
-            onPressed: () => PageUtils.pushDynDetail(item, isPush: true),
+            onPressed: () => PageUtils.pushDynDetail(
+              item,
+              isPush: true,
+              viewComment: true,
+            ),
             icon: Icon(
               FontAwesomeIcons.comment,
               size: 16,
@@ -83,13 +96,23 @@ class ActionPanel extends StatelessWidget {
         Expanded(
           child: Builder(
             builder: (context) {
+              final IconData icon;
+              final Color color;
+              final String label;
+              if (like.status ?? false) {
+                icon = FontAwesomeIcons.solidThumbsUp;
+                color = primary;
+                label = '已赞';
+              } else {
+                icon = FontAwesomeIcons.thumbsUp;
+                color = outline;
+                label = '点赞';
+              }
               final likeIcon = Icon(
-                like.status!
-                    ? FontAwesomeIcons.solidThumbsUp
-                    : FontAwesomeIcons.thumbsUp,
+                icon,
                 size: 16,
-                color: like.status! ? primary : outline,
-                semanticLabel: like.status! ? "已赞" : "点赞",
+                color: color,
+                semanticLabel: label,
               );
               return TextButton.icon(
                 onPressed: () => RequestUtils.onLikeDynamic(

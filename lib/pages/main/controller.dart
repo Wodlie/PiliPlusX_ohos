@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/grpc/dyn.dart';
+import 'package:PiliPlus/harmony_adapt/harmony_channel.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/msg.dart';
 import 'package:PiliPlus/models/common/dynamic/dynamic_badge_mode.dart';
@@ -9,7 +10,6 @@ import 'package:PiliPlus/models/common/msg/msg_unread_type.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/pages/dynamics/controller.dart';
 import 'package:PiliPlus/pages/home/controller.dart';
-import 'package:PiliPlus/pages/login/controller.dart';
 import 'package:PiliPlus/pages/mine/view.dart';
 import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
@@ -23,6 +23,7 @@ import 'package:collection/collection.dart';
 import 'package:easy_debounce/easy_throttle.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:os_type/os_type.dart';
 
 class MainController extends GetxController
     with GetSingleTickerProviderStateMixin, AccountMixin {
@@ -38,6 +39,8 @@ class MainController extends GetxController
   bool useBottomNav = false;
   late dynamic controller;
   final RxInt selectedIndex = 0.obs;
+  /// ArkTS 发起的页签切换，跳过回传 ArkTS 以避免循环
+  bool _fromArkTS = false;
 
   final RxInt dynCount = 0.obs;
   late DynamicBadgeMode dynamicBadgeMode;
@@ -56,12 +59,12 @@ class MainController extends GetxController
   late int lastCheckUnreadAt = 0;
 
   final enableMYBar = Pref.enableMYBar;
-  final floatingNavBar = Pref.floatingNavBar;
-  final enableLGBar = Pref.enableLGBar.obs;
-  void updateEnableLGBar() {
-    enableLGBar.value = Pref.enableLGBar;
-  }
 
+  /// 鸿蒙原生 HDS 底栏（API >= 23 时由原生渲染液态玻璃页签栏）
+  /// 修改设置后需重启应用生效
+  final RxBool useNativeTabs = false.obs;
+
+  final floatingNavBar = Pref.floatingNavBar;
   final useSideBar = Pref.useSideBar;
   final mainTabBarView = Pref.mainTabBarView;
   late final optTabletNav = Pref.optTabletNav;
@@ -122,6 +125,26 @@ class MainController extends GetxController
         queryUnreadMsg();
       }
     }
+
+    // 鸿蒙：注册原生 HDS 底栏回调，冷启动后主动拉取配置
+    if (OS.isHarmony) {
+      HarmonyChannel.onShellTabSwitch = (int index) {
+        if (index >= 0 && index < navigationBars.length) {
+          _fromArkTS = true;
+          setIndex(index);
+        }
+      };
+      _initHdsBar();
+    }
+  }
+
+  /// 鸿蒙：查询 API 版本，结合用户偏好计算 useNativeTabs，通知 ArkTS
+  Future<void> _initHdsBar() async {
+    final apiVersion = await HarmonyChannel.getDeviceInfo();
+    final enableHdsBar = Pref.enableHdsBar;
+    final useNative = apiVersion != null && apiVersion >= 23 && enableHdsBar;
+    useNativeTabs.value = useNative;
+    HarmonyChannel.setShellBars(useNativeTabs: useNative);
   }
 
   Future<int> _msgUnread() async {
@@ -238,7 +261,8 @@ class MainController extends GetxController
           .toList();
     }
     this.navigationBars = navigationBars;
-    selectedIndex.value = Pref.defaultHomePageIndex;
+    final defPage = Pref.defaultHomePage;
+    selectedIndex.value = navigationBars.indexOf(defPage);
   }
 
   void checkDefaultSearch([bool shouldCheck = false]) {
@@ -300,6 +324,11 @@ class MainController extends GetxController
       } else {
         controller.jumpToPage(value);
       }
+      // Flutter 发起的切换同步到 ArkTS HdsTabs
+      if (!_fromArkTS) {
+        HarmonyChannel.changeTabIndex(value);
+      }
+      _fromArkTS = false;
       if (currentNav == NavigationBarType.home) {
         checkDefaultSearch();
         checkUnread();
@@ -325,12 +354,6 @@ class MainController extends GetxController
           homeController.toTopOrRefresh();
         } else if (currentNav == NavigationBarType.dynamics) {
           dynamicController.toTopOrRefresh();
-        } else if (currentNav == NavigationBarType.mine) {
-          if (Pref.defaultShowWatchLater) {
-            Get.toNamed('/later');
-          } else {
-            LoginPageController.switchAccountDialog(Get.context!);
-          }
         }
       }
       _lastSelectTime = now;
@@ -345,6 +368,9 @@ class MainController extends GetxController
 
   @override
   void onClose() {
+    if (OS.isHarmony) {
+      HarmonyChannel.onShellTabSwitch = null;
+    }
     barOffset?.close();
     controller.dispose();
     super.onClose();

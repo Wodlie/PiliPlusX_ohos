@@ -1,7 +1,5 @@
 ﻿import 'dart:io' show File;
 
-import 'dart:io' show File;
-
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/time_picker.dart';
@@ -17,7 +15,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:os_type/os_type.dart';
 
 class CreateVotePage extends StatefulWidget {
   const CreateVotePage({super.key, this.voteId});
@@ -93,7 +90,7 @@ class _CreateVotePageState extends State<CreateVotePage> {
               theme,
               key: ValueKey('${_controller.key}desc'),
               initialValue: _controller.desc.value,
-              onChanged: (value) => _controller.desc.value = value,
+              onChanged: _controller.desc.call,
               desc: '投票说明',
               inputFormatters: [LengthLimitingTextInputFormatter(100)],
             ),
@@ -193,10 +190,7 @@ class _CreateVotePageState extends State<CreateVotePage> {
                   child: PopupMenuButton<int>(
                     initialValue: choiceCnt,
                     requestFocus: false,
-                    child: Text(
-                      choiceCnt == 1 ? '单选         ' : '最多选$choiceCnt项',
-                    ),
-                    onSelected: (value) => _controller.choiceCnt.value = value,
+                    onSelected: _controller.choiceCnt.call,
                     itemBuilder: (context) {
                       return choices
                           .map(
@@ -207,6 +201,9 @@ class _CreateVotePageState extends State<CreateVotePage> {
                           )
                           .toList();
                     },
+                    child: Text(
+                      choiceCnt == 1 ? '单选         ' : '最多选$choiceCnt项',
+                    ),
                   ),
                 );
               }),
@@ -431,14 +428,15 @@ class _CreateVotePageState extends State<CreateVotePage> {
       const Duration(milliseconds: 500),
       () async {
         try {
-          XFile? pickedFile = await imagePicker.pickImage(
+          final pickedFile = await imagePicker.pickImage(
             imageQuality: 100,
             source: ImageSource.gallery,
+            requestFullMetadata: false,
           );
           if (pickedFile != null) {
             final path = pickedFile.path;
             _controller.onUpload(index, path).whenComplete(() {
-              if (PlatformUtils.isMobile && !OS.isHarmony) {
+              if (PlatformUtils.isMobile) {
                 File(path).tryDel();
               }
             });

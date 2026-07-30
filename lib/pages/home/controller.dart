@@ -15,10 +15,8 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import 'package:os_type/os_type.dart';
-
 class HomeController extends GetxController
-    with GetTickerProviderStateMixin, ScrollOrRefreshMixin {
+    with GetSingleTickerProviderStateMixin, ScrollOrRefreshMixin {
   late List<HomeTabType> tabs;
   late TabController tabController;
 
@@ -35,25 +33,6 @@ class HomeController extends GetxController
   ScrollController get scrollController => controller.scrollController;
 
   AccountService accountService = Get.find<AccountService>();
-
-  bool _isFabVisible = true;
-  AnimationController? _fabAnimationCtr;
-  Animation<Offset>? _fabAnimation;
-
-  Animation<Offset> get fabAnimation {
-    if (_fabAnimation != null) return _fabAnimation!;
-    _fabAnimationCtr = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    )..forward();
-    _fabAnimation = _fabAnimationCtr!.drive(
-      Tween<Offset>(
-        begin: const Offset(0.0, 2.0),
-        end: Offset.zero,
-      ).chain(CurveTween(curve: Curves.easeInOut)),
-    );
-    return _fabAnimation!;
-  }
 
   @override
   void onInit() {
@@ -103,24 +82,7 @@ class HomeController extends GetxController
   @override
   void dispose() {
     tabController.dispose();
-    _fabAnimationCtr?.dispose();
     super.dispose();
-  }
-
-  void showFab() {
-    if (OS.isHarmony) return;
-    if (!_isFabVisible) {
-      _isFabVisible = true;
-      _fabAnimationCtr?.forward();
-    }
-  }
-
-  void hideFab() {
-    if (OS.isHarmony) return;
-    if (_isFabVisible) {
-      _isFabVisible = false;
-      _fabAnimationCtr?.reverse();
-    }
   }
 
   Future<void> querySearchDefault() async {
@@ -131,6 +93,7 @@ class HomeController extends GetxController
       );
       if (res.data['code'] == 0) {
         defaultSearch.value = res.data['data']?['name'] ?? '';
+        // defaultSearch.value = res.data['data']?['show_name'] ?? '';
       }
     } catch (_) {}
   }

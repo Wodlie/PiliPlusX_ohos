@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:PiliPlus/http/dynamics.dart';
-import 'package:PiliPlus/http/follow.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/dynamic/dynamics_type.dart';
 import 'package:PiliPlus/models/dynamics/up.dart';
@@ -36,25 +35,6 @@ class DynamicsController
   @override
   final AccountService accountService = Get.find<AccountService>();
 
-  bool _isFabVisible = true;
-  AnimationController? _fabAnimationCtr;
-  Animation<Offset>? _fabAnimation;
-
-  Animation<Offset> get fabAnimation {
-    if (_fabAnimation != null) return _fabAnimation!;
-    _fabAnimationCtr = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    )..forward();
-    _fabAnimation = _fabAnimationCtr!.drive(
-      Tween<Offset>(
-        begin: const Offset(0.0, 2.0),
-        end: Offset.zero,
-      ).chain(CurveTween(curve: Curves.easeInOut)),
-    );
-    return _fabAnimation!;
-  }
-
   DynamicsTabController? get controller {
     try {
       return Get.find<DynamicsTabController>(
@@ -68,6 +48,9 @@ class DynamicsController
   @override
   void onInit() {
     super.onInit();
+    statusBarTap
+      ..routeName = Get.currentRoute
+      ..register();
     tabController = TabController(
       vsync: this,
       length: DynamicsTabType.values.length,
@@ -119,20 +102,6 @@ class DynamicsController
     return controller!.onRefresh();
   }
 
-  void showFab() {
-    if (!_isFabVisible) {
-      _isFabVisible = true;
-      _fabAnimationCtr?.forward();
-    }
-  }
-
-  void hideFab() {
-    if (_isFabVisible) {
-      _isFabVisible = false;
-      _fabAnimationCtr?.reverse();
-    }
-  }
-
   @override
   void animateToTop() {
     controller?.animateToTop();
@@ -151,9 +120,7 @@ class DynamicsController
         EasyThrottle.throttle(
           'topOrRefresh',
           const Duration(milliseconds: 500),
-          () async {
-            await onRefresh();
-          },
+          onRefresh,
         );
       } else {
         animateToTop();
@@ -165,6 +132,7 @@ class DynamicsController
 
   @override
   void onClose() {
+    statusBarTap.dispose();
     tabController.dispose();
     super.onClose();
   }
@@ -173,22 +141,17 @@ class DynamicsController
   void onChangeAccount(bool isLogin) => onReload();
 
   @override
-  Future<LoadingState<FollowUpModel>> customGetData() async {
+  Future<LoadingState<FollowUpModel>> customGetData() {
     if (_offset == null) {
       return DynamicsHttp.followUp();
     }
     if (_showAllUp) {
-      final result = await FollowHttp.followings(
+      return DynamicsHttp.followings(
         vmid: Accounts.main.mid,
         pn: _page,
         orderType: 'attention',
         ps: 50,
       );
-      if (result case Success(:final response)) {
-        final model = FollowUpModel.fromFollowList({'list': response.list});
-        return Success(model);
-      }
-      return Error(null);
     } else {
       return DynamicsHttp.dynUpList(_offset);
     }

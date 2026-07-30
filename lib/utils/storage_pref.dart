@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' show sqrt;
 
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/http/constants.dart';
@@ -17,7 +16,6 @@ import 'package:PiliPlus/models/common/sponsor_block/skip_type.dart';
 import 'package:PiliPlus/models/common/super_chat_type.dart';
 import 'package:PiliPlus/models/common/super_resolution_type.dart';
 import 'package:PiliPlus/models/common/theme/theme_type.dart';
-import 'package:PiliPlus/models/common/video/ai_summary_service.dart';
 import 'package:PiliPlus/models/common/video/audio_quality.dart';
 import 'package:PiliPlus/models/common/video/cdn_type.dart';
 import 'package:PiliPlus/models/common/video/live_quality.dart';
@@ -26,13 +24,14 @@ import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
 import 'package:PiliPlus/models/user/danmaku_rule.dart';
 import 'package:PiliPlus/models/user/info.dart';
+import 'package:PiliPlus/pages/setting/pages/fullscreen_sc_size.dart'
+    show kFullScreenSCWidth;
 import 'package:PiliPlus/plugin/pl_player/models/audio_output_type.dart';
 import 'package:PiliPlus/plugin/pl_player/models/bottom_progress_behavior.dart';
 import 'package:PiliPlus/plugin/pl_player/models/fullscreen_mode.dart';
 import 'package:PiliPlus/plugin/pl_player/models/hwdec_type.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
-import 'package:PiliPlus/utils/accounts/identity_core/identity_owner.dart';
-import 'package:PiliPlus/utils/accounts/identity_persistence.dart';
+import 'package:PiliPlus/utils/device_utils.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
@@ -84,27 +83,6 @@ abstract final class Pref {
     GlobalData().blackMids..remove(mid),
   );
 
-  static bool get accountDisplayName =>
-      _setting.get(SettingBoxKey.accountDisplayName, defaultValue: false);
-
-  static Map<int, String> get accountUnameMap => Map<int, String>.from(
-    _localCache.get(LocalCacheKey.accountUnameMap, defaultValue: {}),
-  );
-
-  static void setAccountUname(int mid, String uname) {
-    if (mid <= 0) return;
-    final map = accountUnameMap;
-    map[mid] = uname;
-    _localCache.put(LocalCacheKey.accountUnameMap, map);
-  }
-
-  static String getAccountDisplayName(int mid) {
-    if (!accountDisplayName || mid <= 0) return mid.toString();
-    final uname = accountUnameMap[mid];
-    if (uname == null || uname.isEmpty) return mid.toString();
-    return uname.length > 10 ? uname.substring(0, 10) : uname;
-  }
-
   static MemberTabType get memberTab =>
       MemberTabType.values[_setting.get(
         SettingBoxKey.memberTab,
@@ -126,8 +104,10 @@ abstract final class Pref {
 
   static List<double> get springDescription => List<double>.from(
     _setting.get(SettingBoxKey.springDescription) ??
-        [0.5, 100.0, 2.2 * sqrt(50)], // [mass, stiffness, damping]
+        // duration: 0.3, bounce: 0.0
+        const [1.0, 438.64908449286037, 41.88790204786391],
   );
+  //   [0.5, 100.0, 2.2 * math.sqrt(50)], // [mass, stiffness, damping]
 
   static List<double> get speedList => List<double>.from(
     _video.get(
@@ -214,26 +194,16 @@ abstract final class Pref {
         defaultValue: UpPanelPosition.leftFixed.index,
       )];
 
-  static bool get showHomeRefreshFab =>
-      _setting.get(SettingBoxKey.showHomeRefreshFab, defaultValue: false);
-
-  static bool get showDynamicsRefreshFab =>
-      _setting.get(SettingBoxKey.showDynamicsRefreshFab, defaultValue: false);
-
   static FullScreenMode get fullScreenMode {
     int? index = _setting.get(SettingBoxKey.fullScreenMode);
     if (index == null) {
-      final FullScreenMode mode = horizontalScreen && isTablet ? .none : .auto;
+      final FullScreenMode mode = horizontalScreen && DeviceUtils.isTablet
+          ? .none
+          : .auto;
       _setting.put(SettingBoxKey.fullScreenMode, mode.index);
       return mode;
     }
     return FullScreenMode.values[index];
-  }
-
-  static bool get isTablet {
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    final screenSize = view.physicalSize / view.devicePixelRatio;
-    return screenSize.shortestSide >= 600;
   }
 
   static BtmProgressBehavior get btmProgressBehavior =>
@@ -302,22 +272,11 @@ abstract final class Pref {
     return const <VideoDecodeFormatType>[.AVC, .AV1];
   }
 
-  /// Deprecated: use [preferCodecs] instead. Kept for OHOS compatibility.
-  static String get defaultDecode => _setting.get(
-    SettingBoxKey.defaultDecode,
-    defaultValue: VideoDecodeFormatType.HEVC.codes.first,
-  );
-
-  /// Deprecated: use [preferCodecs] instead. Kept for OHOS compatibility.
-  static String get secondDecode => _setting.get(
-    SettingBoxKey.secondDecode,
-    defaultValue: VideoDecodeFormatType.AVC.codes.first,
-  );
-
   static String get hardwareDecoding => _setting.get(
     SettingBoxKey.hardwareDecoding,
-    defaultValue:
-        Platform.isAndroid ? HwDecType.autoSafe.hwdec : HwDecType.auto.hwdec,
+    defaultValue: Platform.isAndroid
+        ? HwDecType.androidDefault
+        : HwDecType.auto.hwdec,
   );
 
   static String get videoSync =>
@@ -340,14 +299,6 @@ abstract final class Pref {
 
   static String get banWordForReply =>
       _setting.get(SettingBoxKey.banWordForReply, defaultValue: '');
-
-  static String get defaultAppealReason =>
-      _setting.get(SettingBoxKey.defaultAppealReason, defaultValue: '');
-  static set defaultAppealReason(String value) =>
-      _setting.put(SettingBoxKey.defaultAppealReason, value);
-
-  static int get minLevelForReply =>
-      _setting.get(SettingBoxKey.minLevelForReply, defaultValue: 0);
 
   static String get banWordForZone =>
       _setting.get(SettingBoxKey.banWordForZone, defaultValue: '');
@@ -457,12 +408,12 @@ abstract final class Pref {
 
   static bool get horizontalSeasonPanel => _setting.get(
     SettingBoxKey.horizontalSeasonPanel,
-    defaultValue: PlatformUtils.isDesktop,
+    defaultValue: horizontalScreen,
   );
 
   static bool get horizontalMemberPage => _setting.get(
     SettingBoxKey.horizontalMemberPage,
-    defaultValue: PlatformUtils.isDesktop,
+    defaultValue: horizontalScreen,
   );
 
   static int? get replyLengthLimit {
@@ -512,9 +463,6 @@ abstract final class Pref {
   static bool get autoUpdate =>
       _setting.get(SettingBoxKey.autoUpdate, defaultValue: true);
 
-  static bool get autoClearCache =>
-      _setting.get(SettingBoxKey.autoClearCache, defaultValue: false);
-
   static bool get horizontalPreview =>
       _setting.get(SettingBoxKey.horizontalPreview, defaultValue: false);
 
@@ -548,8 +496,10 @@ abstract final class Pref {
     return superResolutionType ?? SuperResolutionType.disable;
   }
 
-  static bool get preInitPlayer =>
-      _setting.get(SettingBoxKey.preInitPlayer, defaultValue: OS.isHarmony);
+  static bool get preInitPlayer => _setting.get(
+    SettingBoxKey.preInitPlayer,
+    defaultValue: OS.isHarmony,
+  );
 
   static bool get mainTabBarView =>
       _setting.get(SettingBoxKey.mainTabBarView, defaultValue: false);
@@ -594,14 +544,8 @@ abstract final class Pref {
   static bool get antiGoodsReply =>
       _setting.get(SettingBoxKey.antiGoodsReply, defaultValue: false);
 
-  static bool get showBlockedReplyBanner =>
-      _setting.get(SettingBoxKey.showBlockedReplyBanner, defaultValue: true);
-
   static bool get expandDynLivePanel =>
       _setting.get(SettingBoxKey.expandDynLivePanel, defaultValue: false);
-
-  static bool get expandBuffer =>
-      _setting.get(SettingBoxKey.expandBuffer, defaultValue: false);
 
   static bool get slideDismissReplyPage => _setting.get(
     SettingBoxKey.slideDismissReplyPage,
@@ -644,11 +588,6 @@ abstract final class Pref {
     defaultValue: LiveQuality.superHD.code,
   );
 
-  static bool get useSystemFont => _setting.get(
-    SettingBoxKey.useSystemFont,
-    defaultValue: false,
-  );
-
   static int get appFontWeight =>
       _setting.get(SettingBoxKey.appFontWeight, defaultValue: -1);
 
@@ -658,17 +597,8 @@ abstract final class Pref {
   static int get fastForBackwardDuration =>
       _setting.get(SettingBoxKey.fastForBackwardDuration, defaultValue: 10);
 
-  static int get fastForBackwardDuration_ =>
-      _setting.get(SettingBoxKey.fastForBackwardDuration_, defaultValue: 10);
-
   static bool get recordSearchHistory =>
       _setting.get(SettingBoxKey.recordSearchHistory, defaultValue: true);
-
-  static bool get clipboardSearchIncognito =>
-      _setting.get(SettingBoxKey.clipboardSearchIncognito, defaultValue: false);
-
-  static bool get showClipboardSearch =>
-      _setting.get(SettingBoxKey.showClipboardSearch, defaultValue: true);
 
   static String get webdavUri =>
       _setting.get(SettingBoxKey.webdavUri, defaultValue: '');
@@ -688,54 +618,13 @@ abstract final class Pref {
   static num get maxCacheSize =>
       _setting.get(SettingBoxKey.maxCacheSize) ?? 1 << 30;
 
-  static String get apiHKUrl =>
-      _setting.get(SettingBoxKey.apiHKUrl, defaultValue: '');
-
-  static bool get enableCustomApiHost =>
-      _setting.get(SettingBoxKey.enableCustomApiHost, defaultValue: false);
-
-  static String get customBaseUrl =>
-      _setting.get(SettingBoxKey.customBaseUrl, defaultValue: '');
-
-  static String get customApiBaseUrl =>
-      _setting.get(SettingBoxKey.customApiBaseUrl, defaultValue: '');
-
-  static String get customTUrl =>
-      _setting.get(SettingBoxKey.customTUrl, defaultValue: '');
-
-  static String get customAppBaseUrl =>
-      _setting.get(SettingBoxKey.customAppBaseUrl, defaultValue: '');
-
-  static String get customLiveBaseUrl =>
-      _setting.get(SettingBoxKey.customLiveBaseUrl, defaultValue: '');
-
-  static String get customPassBaseUrl =>
-      _setting.get(SettingBoxKey.customPassBaseUrl, defaultValue: '');
-
-  static String get customMessageBaseUrl =>
-      _setting.get(SettingBoxKey.customMessageBaseUrl, defaultValue: '');
-
-  static String get customSpaceBaseUrl =>
-      _setting.get(SettingBoxKey.customSpaceBaseUrl, defaultValue: '');
-
-  static String get customAccountBaseUrl =>
-      _setting.get(SettingBoxKey.customAccountBaseUrl, defaultValue: '');
-
-  static String get customMallBaseUrl =>
-      _setting.get(SettingBoxKey.customMallBaseUrl, defaultValue: '');
-
-  static String get customDynamicShareBaseUrl =>
-      _setting.get(SettingBoxKey.customDynamicShareBaseUrl, defaultValue: '');
-
-  static String get customSearchBaseUrl =>
-      _setting.get(SettingBoxKey.customSearchBaseUrl, defaultValue: '');
-
   static bool get optTabletNav =>
       _setting.get(SettingBoxKey.optTabletNav, defaultValue: true);
 
   static bool get horizontalScreen {
     bool? horizontalScreen = _setting.get(SettingBoxKey.horizontalScreen);
     if (horizontalScreen == null) {
+      final isTablet = DeviceUtils.isTablet;
       _setting.put(SettingBoxKey.horizontalScreen, isTablet);
       return isTablet;
     }
@@ -771,9 +660,6 @@ abstract final class Pref {
   static bool get enableBackgroundPlay =>
       _setting.get(SettingBoxKey.enableBackgroundPlay, defaultValue: true);
 
-  static bool get allowRotateScreen =>
-      _setting.get(SettingBoxKey.allowRotateScreen, defaultValue: true);
-
   static bool get disableLikeMsg =>
       _setting.get(SettingBoxKey.disableLikeMsg, defaultValue: false);
 
@@ -795,13 +681,13 @@ abstract final class Pref {
   static double get defaultTextScale =>
       _setting.get(SettingBoxKey.defaultTextScale, defaultValue: 1.0);
 
-  static double get uiScale {
-    final double scale = _setting.get(SettingBoxKey.uiScale, defaultValue: 1.0);
-    return scale.clamp(0.5, 3.0);
-  }
+  static double get uiScale =>
+      _setting.get(SettingBoxKey.uiScale, defaultValue: 1.0);
 
-  static bool get dynamicsWaterfallFlow =>
-      _setting.get(SettingBoxKey.dynamicsWaterfallFlow, defaultValue: true);
+  static bool get dynamicsWaterfallFlow => _setting.get(
+    SettingBoxKey.dynamicsWaterfallFlow,
+    defaultValue: horizontalScreen,
+  );
 
   static bool get hideTopBar => _setting.get(
     SettingBoxKey.hideTopBar,
@@ -825,9 +711,6 @@ abstract final class Pref {
   static bool get useSideBar =>
       _setting.get(SettingBoxKey.useSideBar, defaultValue: false);
 
-  static bool get hideStatusBar =>
-      _setting.get(SettingBoxKey.hideStatusBar, defaultValue: false);
-
   static bool get dynamicsShowAllFollowedUp => _setting.get(
     SettingBoxKey.dynamicsShowAllFollowedUp,
     defaultValue: false,
@@ -841,9 +724,6 @@ abstract final class Pref {
 
   static bool get enableQuickFav =>
       _setting.get(SettingBoxKey.enableQuickFav, defaultValue: false);
-
-  static bool get enableQuickShare =>
-      _setting.get(SettingBoxKey.enableQuickShare, defaultValue: false);
 
   static bool get p1080 =>
       _setting.get(SettingBoxKey.p1080, defaultValue: true);
@@ -879,6 +759,9 @@ abstract final class Pref {
   static bool get enableLGBar =>
       _setting.get(SettingBoxKey.enableLGBar, defaultValue: false);
 
+  static bool get enableHdsBar =>
+      _setting.get(SettingBoxKey.enableHdsBar, defaultValue: false);
+
   static bool get enableStatusBarTapToTop =>
       _setting.get(SettingBoxKey.enableStatusBarTapToTop, defaultValue: false);
 
@@ -902,37 +785,6 @@ abstract final class Pref {
 
   static bool get enableSponsorBlock =>
       _setting.get(SettingBoxKey.enableSponsorBlock, defaultValue: false);
-
-  static bool get suppressSponsorBlockIncognito => _setting.get(
-    SettingBoxKey.suppressSponsorBlockIncognito,
-    defaultValue: false,
-  );
-
-  // ===== @评论过滤 (At-filter) =====
-
-  static bool get enableAtFilter =>
-      _setting.get(SettingBoxKey.enableAtFilter, defaultValue: false);
-
-  static bool get enableAtFilterPureAt =>
-      _setting.get(SettingBoxKey.enableAtFilterPureAt, defaultValue: false);
-
-  static bool get enableAtFilterBodyLength =>
-      _setting.get(SettingBoxKey.enableAtFilterBodyLength, defaultValue: false);
-
-  static int get atFilterBodyLengthThreshold =>
-      _setting.get(SettingBoxKey.atFilterBodyLengthThreshold, defaultValue: 10);
-
-  static bool get enableAtFilterAtCount =>
-      _setting.get(SettingBoxKey.enableAtFilterAtCount, defaultValue: false);
-
-  static int get atFilterAtCountThreshold =>
-      _setting.get(SettingBoxKey.atFilterAtCountThreshold, defaultValue: 5);
-
-  static bool get enableAtFilterLikeExempt =>
-      _setting.get(SettingBoxKey.enableAtFilterLikeExempt, defaultValue: false);
-
-  static int get atFilterLikeExemptThreshold =>
-      _setting.get(SettingBoxKey.atFilterLikeExemptThreshold, defaultValue: 50);
 
   static bool get enableHA =>
       _setting.get(SettingBoxKey.enableHA, defaultValue: true);
@@ -1008,50 +860,6 @@ abstract final class Pref {
   static bool get enableAi =>
       _setting.get(SettingBoxKey.enableAi, defaultValue: false);
 
-  static bool get enableAiSummaryBackground => _setting.get(
-    SettingBoxKey.enableAiSummaryBackground,
-    defaultValue: false,
-  );
-
-  static AiSummaryService get aiSummaryService {
-    if (_setting.get(SettingBoxKey.aiSummaryService) case final String service) {
-      return AiSummaryService.values.firstWhere(
-        (item) => item.name == service,
-        orElse: () => AiSummaryService.bilibiliLegacyDeprecated,
-      );
-    }
-    return AiSummaryService.bilibiliLegacyDeprecated;
-  }
-
-  static set aiSummaryService(AiSummaryService value) =>
-      _setting.put(SettingBoxKey.aiSummaryService, value.name);
-
-  static String get aiSummaryBaseUrl =>
-      _setting.get(SettingBoxKey.aiSummaryBaseUrl, defaultValue: '');
-
-  static String get aiSummaryApiKey =>
-      _setting.get(SettingBoxKey.aiSummaryApiKey, defaultValue: '');
-
-  static String get aiSummaryTextModel =>
-      _setting.get(SettingBoxKey.aiSummaryTextModel, defaultValue: '');
-
-  static String get aiSummaryMultimodalModel =>
-      _setting.get(SettingBoxKey.aiSummaryMultimodalModel, defaultValue: '');
-
-  static int get aiSummaryTimeoutSeconds {
-    final int value = _setting.get(
-      SettingBoxKey.aiSummaryTimeoutSeconds,
-      defaultValue: 20,
-    );
-    return value.clamp(5, 600);
-  }
-
-  static bool get enableCommentTranslate =>
-      _setting.get(SettingBoxKey.enableCommentTranslate, defaultValue: true);
-
-  static bool get manualLoadCommentImage =>
-      _setting.get(SettingBoxKey.manualLoadCommentImage, defaultValue: false);
-
   static bool get enableOnlineTotal =>
       _setting.get(SettingBoxKey.enableOnlineTotal, defaultValue: false);
 
@@ -1069,12 +877,6 @@ abstract final class Pref {
 
   static bool get defaultShowComment =>
       _setting.get(SettingBoxKey.defaultShowComment, defaultValue: false);
-
-  static bool get defaultShowWatchLater =>
-      _setting.get(SettingBoxKey.defaultShowWatchLater, defaultValue: false);
-
-  static bool get defaultAddWatchLater =>
-      _setting.get(SettingBoxKey.defaultAddWatchLater, defaultValue: false);
 
   static bool get enableTrending =>
       _setting.get(SettingBoxKey.enableHotKey, defaultValue: true);
@@ -1108,8 +910,6 @@ abstract final class Pref {
 
   static int? get quickFavId => _setting.get(SettingBoxKey.quickFavId);
 
-  static int? get quickShareId => _setting.get(SettingBoxKey.quickShareId);
-
   static bool get tempPlayerConf =>
       _setting.get(SettingBoxKey.tempPlayerConf, defaultValue: false);
 
@@ -1130,35 +930,14 @@ abstract final class Pref {
   static bool get silentDownImg =>
       _setting.get(SettingBoxKey.silentDownImg, defaultValue: false);
 
-  static String get guestBuvid {
-    final resolution = OwnerScopedIdentityPersistence.resolve(
-      owner: const IdentityOwnerKey.guest(),
-      storedBuvid: _localCache.get(LocalCacheKey.guestBuvid) as String?,
-      legacyBuvid: _localCache.get(LocalCacheKey.legacyBuvid) as String?,
-    );
-    if (resolution.shouldPersist) {
-      _localCache.put(LocalCacheKey.guestBuvid, resolution.profile.buvid);
+  static String get buvid {
+    String? buvid = _localCache.get(LocalCacheKey.buvid);
+    if (buvid == null) {
+      buvid = LoginUtils.generateBuvid();
+      _localCache.put(LocalCacheKey.buvid, buvid);
     }
-    if (resolution.shouldDeleteLegacy) {
-      _localCache.delete(LocalCacheKey.legacyBuvid);
-    }
-    return resolution.profile.buvid;
+    return buvid;
   }
-
-  static Future<void> deleteGuestBuvid() {
-    return _localCache.delete(LocalCacheKey.guestBuvid);
-  }
-
-  /// No code path reads this key anymore — guest paths use [guestBuvid]
-  /// and account paths use [LoginAccount.buvid].
-  static Future<void> deleteLegacyBuvid() => _localCache.delete(
-    LocalCacheKey.legacyBuvid,
-  );
-
-  @Deprecated(
-    'Guest-compatibility wrapper only. Use guestBuvid or Account.buvid instead.',
-  )
-  static String get buvid => guestBuvid;
 
   static bool get showMemberShop =>
       _setting.get(SettingBoxKey.showMemberShop, defaultValue: false);
@@ -1171,7 +950,7 @@ abstract final class Pref {
 
   static double get fullScreenSCWidth => _setting.get(
     SettingBoxKey.fullScreenSCWidth,
-    defaultValue: 255.0,
+    defaultValue: kFullScreenSCWidth,
   );
 
   static bool get minimizeOnExit =>
@@ -1180,14 +959,7 @@ abstract final class Pref {
   static Size get windowSize {
     final List<double>? size = (_setting.get(SettingBoxKey.windowSize) as List?)
         ?.fromCast<double>();
-    if (size != null && size.length >= 2) {
-      final width = size[0];
-      final height = size[1];
-      if (width >= 300 && height >= 300) {
-        return Size(width, height);
-      }
-    }
-    return const Size(1180.0, 720.0);
+    return size == null ? const Size(1180.0, 720.0) : Size(size[0], size[1]);
   }
 
   static List<double>? get windowPosition =>
@@ -1230,11 +1002,6 @@ abstract final class Pref {
 
   static String? get downloadPath => _setting.get(SettingBoxKey.downloadPath);
 
-  static String? get saveImgPath => _setting.get(SettingBoxKey.saveImgPath);
-
-  static String? get saveScreenshotPath =>
-      _setting.get(SettingBoxKey.saveScreenshotPath);
-
   static String? get liveCdnUrl => _setting.get(SettingBoxKey.liveCdnUrl);
 
   static bool get showBatteryLevel => _setting.get(
@@ -1254,10 +1021,14 @@ abstract final class Pref {
   static bool get showDynDispute =>
       _setting.get(SettingBoxKey.showDynDispute, defaultValue: false);
 
-  static double get touchSlopH => _setting.get(
-    SettingBoxKey.touchSlopH,
-    defaultValue: 12.0,
-  );
+  // 竖向滚动 slop 已在 main._builder 统一为 8 逻辑像素（鸿蒙），横向取 12
+  // 时约 34° 以内的滑动可赢得竞技场，横竖手势按主导方向竞争。
+  // 鸿蒙/安卓全向旋转开关
+  static bool get allowRotateScreen =>
+      _setting.get(SettingBoxKey.allowRotateScreen, defaultValue: true);
+
+  static double get touchSlopH =>
+      _setting.get(SettingBoxKey.touchSlopH, defaultValue: 12.0);
 
   static bool get saveReply =>
       _setting.get(SettingBoxKey.saveReply, defaultValue: true);
@@ -1278,44 +1049,4 @@ abstract final class Pref {
       _setting.get(SettingBoxKey.maxVolume, defaultValue: 2.0);
 
   static List? get liveStream => _setting.get(SettingBoxKey.liveStream);
-
-  // ===== 图片屏蔽 (Image Block) =====
-
-  static bool get enableImageBlock =>
-      _setting.get(SettingBoxKey.enableImageBlock, defaultValue: false);
-  static set enableImageBlock(bool value) =>
-      _setting.put(SettingBoxKey.enableImageBlock, value);
-
-  static int get imageBlockThreshold =>
-      _setting.get(SettingBoxKey.imageBlockThreshold, defaultValue: 10);
-  static set imageBlockThreshold(int value) =>
-      _setting.put(SettingBoxKey.imageBlockThreshold, value);
-
-  static bool get imageBlockFlipEnabled =>
-      _setting.get(SettingBoxKey.imageBlockFlipEnabled, defaultValue: false);
-  static set imageBlockFlipEnabled(bool value) =>
-      _setting.put(SettingBoxKey.imageBlockFlipEnabled, value);
-
-  static bool get imageBlockRotateEnabled =>
-      _setting.get(SettingBoxKey.imageBlockRotateEnabled, defaultValue: false);
-  static set imageBlockRotateEnabled(bool value) =>
-      _setting.put(SettingBoxKey.imageBlockRotateEnabled, value);
-
-  static bool get imageBlockDisplayMode =>
-      _setting.get(SettingBoxKey.imageBlockDisplayMode, defaultValue: false);
-  static set imageBlockDisplayMode(bool value) =>
-      _setting.put(SettingBoxKey.imageBlockDisplayMode, value);
-
-  static List<Map<String, dynamic>> get imageBlockHashList {
-    final raw = _setting.get(
-      SettingBoxKey.imageBlockHashList,
-      defaultValue: <dynamic>[],
-    );
-    return (raw as List<dynamic>)
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
-  }
-
-  static set imageBlockHashList(List<Map<String, dynamic>> value) =>
-      _setting.put(SettingBoxKey.imageBlockHashList, value);
 }

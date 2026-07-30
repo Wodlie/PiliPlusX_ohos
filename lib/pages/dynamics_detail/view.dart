@@ -4,8 +4,8 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/controller.dart';
+import 'package:PiliPlus/harmony_adapt/harmony_channel.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
-
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/common/widgets/sliver/sliver_floating_header.dart';
 import 'package:PiliPlus/common/widgets/sliver/sliver_to_box_adapter.dart';
@@ -68,6 +68,9 @@ class _DynamicDetailPageState
   void _onRefresh(Future<void> future) {
     _startRefresh();
     future.whenComplete(_stopRefresh);
+    // Future.delayed(
+    //   const Duration(milliseconds: 800),
+    // ).whenComplete(_stopRefresh);
   }
 
   AnimationController? refreshController;
@@ -152,14 +155,15 @@ class _DynamicDetailPageState
       try {
         for (final e in richTextNodes) {
           if (e.type == 'RICH_TEXT_NODE_TYPE_EMOJI') {
+            const placeHolder = '\uFFFC';
             items.add(
               RichTextItem(
-                text: '\uFFFC',
+                text: placeHolder,
                 rawText: e.origText,
-                type: .emoji,
+                type: RichTextType.emoji,
                 range: TextRange(
                   start: buffer.length,
-                  end: buffer.length + '\uFFFC'.length,
+                  end: buffer.length + placeHolder.length,
                 ),
                 emote: Emote(
                   url: e.emoji!.url!,
@@ -167,17 +171,17 @@ class _DynamicDetailPageState
                 ),
               ),
             );
-            buffer.write('\uFFFC');
+            buffer.write(placeHolder);
             continue;
           }
           final range = TextRange(
             start: buffer.length,
-                  end: buffer.length + (e.origText?.length ?? 0),
+            end: buffer.length + e.origText!.length,
           );
           final item = switch (e.type) {
             'RICH_TEXT_NODE_TYPE_AT' => RichTextItem(
               text: e.origText!,
-              type: .at,
+              type: RichTextType.at,
               range: range,
               id: e.rid,
             ),
@@ -186,13 +190,13 @@ class _DynamicDetailPageState
             'RICH_TEXT_NODE_TYPE_LOTTERY' ||
             'RICH_TEXT_NODE_TYPE_VIEW_PICTURE' => RichTextItem(
               text: e.origText!,
-              type: .common,
+              type: RichTextType.common,
               range: range,
               id: e.rid,
             ),
             'RICH_TEXT_NODE_TYPE_VOTE' => RichTextItem(
               text: e.origText!,
-              type: .vote,
+              type: RichTextType.vote,
               range: range,
               id: e.rid,
             ),
@@ -231,7 +235,7 @@ class _DynamicDetailPageState
     ReplyOptionType? replyOption;
     if (controller.loadingState.value case Error(:final code)) {
       if (code == 12061 || code == 12002) {
-        replyOption = .close;
+        replyOption = ReplyOptionType.close;
       }
     }
     CreateDynPanel.onCreateDyn(
@@ -240,7 +244,7 @@ class _DynamicDetailPageState
       items: items,
       pics: opus?.pics,
       topic: topic,
-      replyOption: replyOption ?? .allow,
+      replyOption: replyOption ?? ReplyOptionType.allow,
       isPrivate: item.modules.moduleAuthor?.badgeText != null,
       editConfig: (
         dynId: item.idStr,
@@ -301,7 +305,7 @@ class _DynamicDetailPageState
         indicatorSize: .tab,
         tabAlignment: .start,
         controller: tabController,
-        labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+        labelPadding: const .symmetric(horizontal: 12),
         dividerColor: theme.colorScheme.outline.withValues(alpha: 0.1),
         onTap: (value) {
           if (!tabController.indexIsChanging) {
@@ -349,7 +353,7 @@ class _DynamicDetailPageState
       key: const PageStorageKey(DynType.reply),
       physics: ReloadScrollPhysics(controller: controller),
       slivers: [
-        buildReplyHeader(),
+        buildReplyHeader(isPortrait),
         Obx(() => replyList(controller.loadingState.value)),
       ],
     );
@@ -388,7 +392,7 @@ class _DynamicDetailPageState
                       color: theme.colorScheme.onSecondary,
                       elevation: 2.0,
                       child: Padding(
-                        padding: const EdgeInsets.all(6),
+                        padding: const .all(6),
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
                           controller: _refreshController,
@@ -410,7 +414,6 @@ class _DynamicDetailPageState
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: padding),
       child: NestedScrollView(
-        // scrollBehavior: const NoOverscrollIndicator(),
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverToBoxWithOffsetAdapter(
@@ -448,7 +451,7 @@ class _DynamicDetailPageState
           child: CustomScrollView(
             slivers: [
               SliverPadding(
-                padding: EdgeInsets.only(
+                padding: .only(
                   left: padding,
                   bottom: this.padding.bottom + 100,
                 ),
@@ -504,7 +507,7 @@ class _DynamicDetailPageState
     } else {
       child = _buildHorizontal(padding);
     }
-    return fabAnimWrapper(child: child);
+    return fabAnimWrapper(child);
   }
 
   Widget _buildBottom() {
@@ -547,7 +550,7 @@ class _DynamicDetailPageState
 
     final moduleStat = controller.dynItem.modules.moduleStat;
     return Padding(
-      padding: EdgeInsets.only(left: padding.left, right: padding.right),
+      padding: .only(left: padding.left, right: padding.right),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -579,23 +582,31 @@ class _DynamicDetailPageState
                         icon: FontAwesomeIcons.shareFromSquare,
                         text: '转发',
                         stat: forward,
-                        onPressed: (_) => showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          useSafeArea: true,
-                          builder: (context) => RepostPanel(
-                            item: controller.dynItem,
-                            onSuccess: () {
-                              if (forward != null) {
-                                int count = forward.count ?? 0;
-                                forward.count = count + 1;
-                                if (btnContext.mounted) {
-                                  (btnContext as Element).markNeedsBuild();
+                        onPressed: (_) {
+                          final wasVisible = HarmonyChannel.hdsBarVisible;
+                          HarmonyChannel.setShellBarsHidden(true);
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            useSafeArea: true,
+                            builder: (context) => RepostPanel(
+                              item: controller.dynItem,
+                              onSuccess: () {
+                                if (forward != null) {
+                                  int count = forward.count ?? 0;
+                                  forward.count = count + 1;
+                                  if (btnContext.mounted) {
+                                    (btnContext as Element).markNeedsBuild();
+                                  }
                                 }
-                              }
-                            },
-                          ),
-                        ),
+                              },
+                            ),
+                          ).then((_) {
+                            if (wasVisible) {
+                              HarmonyChannel.setShellBarsHidden(false);
+                            }
+                          });
+                        },
                       );
                     },
                   ),
@@ -648,15 +659,15 @@ class _DynamicDetailPageState
   }
 
   @override
-  Widget buildReplyHeader() {
+  Widget buildReplyHeader([bool isPortrait = true]) {
     final secondary = theme.colorScheme.secondary;
     final child = Padding(
-      padding: const EdgeInsets.fromLTRB(12, 2.5, 6, 2.5),
+      padding: const .fromLTRB(12, 2.5, 6, 2.5),
       child: Obx(
         () {
           final sortType = controller.sortType.value;
           return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: .spaceBetween,
             children: [
               Text(sortType.title),
               TextButton.icon(

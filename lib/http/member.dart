@@ -20,8 +20,8 @@ import 'package:PiliPlus/models_new/follow/list.dart';
 import 'package:PiliPlus/models_new/member/coin_like_arc/data.dart';
 import 'package:PiliPlus/models_new/member/search_archive/data.dart';
 import 'package:PiliPlus/models_new/member/season_web/data.dart';
-import 'package:PiliPlus/models_new/member_guard/data.dart';
 import 'package:PiliPlus/models_new/member_card_info/data.dart';
+import 'package:PiliPlus/models_new/member_guard/data.dart';
 import 'package:PiliPlus/models_new/space/space/data.dart';
 import 'package:PiliPlus/models_new/space/space_archive/data.dart';
 import 'package:PiliPlus/models_new/space/space_article/data.dart';
@@ -32,8 +32,8 @@ import 'package:PiliPlus/models_new/space/space_season_series/item.dart';
 import 'package:PiliPlus/models_new/space/space_shop/data.dart';
 import 'package:PiliPlus/models_new/upower_rank/data.dart';
 import 'package:PiliPlus/utils/accounts.dart';
-import 'package:PiliPlus/utils/accounts/request_identity_adapter.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
+import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/wbi_sign.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -287,16 +287,17 @@ abstract final class MemberHttp {
     required int mid,
     String token = '',
   }) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
+    String dmImgStr = Utils.base64EncodeRandomString(16, 64);
+    String dmCoverImgStr = Utils.base64EncodeRandomString(32, 128);
     final params = await WbiSign.makSign({
       'mid': mid,
       'token': token,
       'platform': 'web',
       'web_location': 1550101,
-      ...identity.webDmImageQueryFields,
+      'dm_img_list': '[]',
+      'dm_img_str': dmImgStr,
+      'dm_cover_img_str': dmCoverImgStr,
+      'dm_img_inter': '{"ds":[],"wh":[0,0,0],"of":[0,0,0]}',
     });
     final res = await Request().get(
       Api.memberInfo,
@@ -354,10 +355,8 @@ abstract final class MemberHttp {
     String? specialType, // e.g. 'charging'
     ArchiveOrderTypeWeb order = .pubdate,
   }) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
+    String dmImgStr = Utils.base64EncodeRandomString(16, 64);
+    String dmCoverImgStr = Utils.base64EncodeRandomString(32, 128);
     final params = await WbiSign.makSign({
       'mid': mid,
       'ps': ps,
@@ -369,7 +368,10 @@ abstract final class MemberHttp {
       'platform': 'web',
       'web_location': 333.1387,
       'order_avoided': true,
-      ...identity.webDmImageQueryFields,
+      'dm_img_list': '[]',
+      'dm_img_str': dmImgStr,
+      'dm_cover_img_str': dmCoverImgStr,
+      'dm_img_inter': '{"ds":[],"wh":[0,0,0],"of":[0,0,0]}',
     });
     final res = await Request().get(
       Api.searchArchive,
@@ -438,10 +440,8 @@ abstract final class MemberHttp {
     String? offset,
     required int mid,
   }) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
+    String dmImgStr = Utils.base64EncodeRandomString(16, 64);
+    String dmCoverImgStr = Utils.base64EncodeRandomString(32, 128);
     final params = await WbiSign.makSign({
       'offset': offset ?? '',
       'host_mid': mid,
@@ -449,8 +449,12 @@ abstract final class MemberHttp {
       'features': Constants.dynFeatures,
       'platform': 'web',
       'web_location': '333.1387',
-      ...identity.webDmImageQueryFields,
-      ...identity.webDeviceQueryFields(spmid: '333.1387'),
+      'dm_img_list': '[]',
+      'dm_img_str': dmImgStr,
+      'dm_cover_img_str': dmCoverImgStr,
+      'dm_img_inter': '{"ds":[],"wh":[0,0,0],"of":[0,0,0]}',
+      'x-bili-device-req-json':
+          '{"platform":"web","device":"pc","spmid":"333.1387"}',
     });
     final res = await Request().get(
       Api.memberDynamic,
@@ -467,7 +471,7 @@ abstract final class MemberHttp {
       try {
         DynamicsDataModel data = DynamicsDataModel.fromJson(res.data['data']);
         if (data.loadNext == true) {
-          return memberDynamic(offset: data.offset, mid: mid);
+          return await memberDynamic(offset: data.offset, mid: mid);
         }
         return Success(data);
       } catch (e, s) {
@@ -537,14 +541,11 @@ abstract final class MemberHttp {
 
   // 设置分组
   static Future<LoadingState<void>> addUsers(String fids, String tagids) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
     final res = await Request().post(
       Api.addUsers,
       queryParameters: {
-        ...identity.webDeviceQueryFields(spmid: '333.1387'),
+        'x-bili-device-req-json':
+            '{"platform":"web","device":"pc","spmid":"333.1387"}',
       },
       data: {
         'fids': fids,
@@ -592,15 +593,12 @@ abstract final class MemberHttp {
     }
   }
 
-  static Future<LoadingState<void>> createFollowTag(Object tagName) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
+  static Future<LoadingState<int>> createFollowTag(String tagName) async {
     final res = await Request().post(
       Api.createFollowTag,
       queryParameters: {
-        ...identity.webDeviceQueryFields(spmid: '333.1387'),
+        'x-bili-device-req-json':
+            '{"platform":"web","device":"pc","spmid":"333.1387"}',
       },
       data: {
         'tag': tagName,
@@ -609,7 +607,7 @@ abstract final class MemberHttp {
       options: Options(contentType: Headers.formUrlEncodedContentType),
     );
     if (res.data['code'] == 0) {
-      return const Success(null);
+      return Success(res.data['data']['tagid']);
     } else {
       return Error(res.data['message']);
     }
@@ -619,14 +617,11 @@ abstract final class MemberHttp {
     Object tagid,
     Object name,
   ) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
     final res = await Request().post(
       Api.updateFollowTag,
       queryParameters: {
-        ...identity.webDeviceQueryFields(spmid: '333.1387'),
+        'x-bili-device-req-json':
+            '{"platform":"web","device":"pc","spmid":"333.1387"}',
       },
       data: {
         'tagid': tagid,
@@ -643,14 +638,11 @@ abstract final class MemberHttp {
   }
 
   static Future<LoadingState<void>> delFollowTag(Object tagid) async {
-    final identity = RequestIdentityAdapter.fromAccount(
-      account: Accounts.main,
-      userAgent: BrowserUa.pc,
-    );
     final res = await Request().post(
       Api.delFollowTag,
       queryParameters: {
-        ...identity.webDeviceQueryFields(spmid: '333.1387'),
+        'x-bili-device-req-json':
+            '{"platform":"web","device":"pc","spmid":"333.1387"}',
       },
       data: {
         'tagid': tagid,

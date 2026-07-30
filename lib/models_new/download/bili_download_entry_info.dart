@@ -1,13 +1,16 @@
-import 'dart:io' show Platform, Process;
+import 'dart:io';
 
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/pages/common/multi_select/base.dart'
     show MultiSelectData;
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
-import 'package:get/route_manager.dart';
+import 'package:get/get.dart';
+import 'package:path/path.dart' as path;
+import 'package:share_plus/share_plus.dart';
 
 class BiliDownloadEntryInfo with MultiSelectData {
   int mediaType;
@@ -40,7 +43,7 @@ class BiliDownloadEntryInfo with MultiSelectData {
 
   late String pageDirPath;
   late String entryDirPath;
-  late DownloadStatus status = .wait;
+  late DownloadStatus status = DownloadStatus.wait;
 
   int get cid => source?.cid ?? pageData!.cid;
 
@@ -130,9 +133,45 @@ class BiliDownloadEntryInfo with MultiSelectData {
             ),
             onTap: () => Get.toNamed('/member?mid=$mid'),
           ),
+        PopupMenuItem(
+          height: 38,
+          onTap: shareSelf,
+          child: const Text(
+            '分享',
+            style: TextStyle(fontSize: 13),
+          ),
+        ),
       ],
     ),
   );
+
+  Future<void> shareSelf() async {
+    final xFiles = <XFile>[];
+    final videoFileName = mediaType == 1
+        ? PathUtils.videoNameType1
+        : PathUtils.videoNameType2;
+    final videoPath = path.join(entryDirPath, typeTag, videoFileName);
+    final videoFile = File(videoPath);
+    if (videoFile.existsSync()) {
+      xFiles.add(XFile(videoPath, name: '$title.mp4'));
+    }
+    if (mediaType != 1 && hasDashAudio) {
+      final audioPath = path.join(
+        entryDirPath,
+        typeTag,
+        PathUtils.audioNameType2,
+      );
+      final audioFile = File(audioPath);
+      if (audioFile.existsSync()) {
+        xFiles.add(XFile(audioPath, name: '${title}_audio.m4s'));
+      }
+    }
+    if (xFiles.isEmpty) {
+      SmartDialog.showToast('没有可分享的文件');
+      return;
+    }
+    await Share.shareXFiles(xFiles);
+  }
 
   BiliDownloadEntryInfo({
     this.mediaType = 1,

@@ -1,10 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 
-import 'package:PiliPlus/common/widgets/flutter/draggable_sheet/draggable_scrollable_sheet_topic.dart';
+import 'package:PiliPlus/common/widgets/flutter/draggable_scrollable_sheet.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/sliver/sliver_pinned_header.dart';
+import 'package:PiliPlus/harmony_adapt/harmony_channel.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/dynamic/dyn_mention/group.dart';
 import 'package:PiliPlus/pages/dynamics_mention/controller.dart';
@@ -31,12 +32,14 @@ class DynMentionPanel extends StatefulWidget {
     double offset = 0,
     ValueChanged<double>? onCachePos,
   }) {
+    final wasVisible = HarmonyChannel.hdsBarVisible;
+    HarmonyChannel.setShellBarsHidden(true);
     return showModalBottomSheet(
       context: Get.context!,
       useSafeArea: true,
       isScrollControlled: true,
       constraints: BoxConstraints(
-        maxWidth: min(600, context.mediaQueryShortestSide),
+        maxWidth: min(600, ContextExtensions(context).mediaQueryShortestSide),
       ),
       builder: (context) => TopicDraggableScrollableSheet(
         expand: false,
@@ -51,7 +54,9 @@ class DynMentionPanel extends StatefulWidget {
           onCachePos: onCachePos,
         ),
       ),
-    );
+    ).then((_) {
+      if (wasVisible) HarmonyChannel.setShellBarsHidden(false);
+    });
   }
 
   @override
@@ -108,7 +113,7 @@ class _DynMentionPanelState
             controller: _controller.controller,
             onChanged: ctr!.add,
             decoration: InputDecoration(
-              visualDensity: .standard,
+              visualDensity: VisualDensity.standard,
               border: const OutlineInputBorder(
                 gapPadding: 0,
                 borderSide: BorderSide.none,

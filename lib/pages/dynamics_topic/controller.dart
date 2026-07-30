@@ -85,7 +85,7 @@ class DynTopicController
   Future<LoadingState<TopicCardList?>> customGetData() =>
       DynamicsHttp.topicFeed(
         topicId: topicId,
-        offset: offset ?? '',
+        offset: offset,
         sortBy: sortBy,
       );
 
@@ -109,7 +109,7 @@ class DynTopicController
       } else {
         topState.value.data!.topicItem!.fav += 1;
       }
-      this.isFav.toggle();
+      this.isFav.value = !isFav;
     } else {
       res.toast();
     }
@@ -128,14 +128,14 @@ class DynTopicController
       } else {
         topState.value.data!.topicItem!.like += 1;
       }
-      this.isLike.toggle();
+      this.isLike.value = !isLike;
     } else {
       res.toast();
     }
   }
 
   Future<void> topicFold() async {
-    final res = await DynamicsHttp.topicFold(topicId: topicId, sortBy: sortBy.toString());
+    final res = await DynamicsHttp.topicFold(topicId: topicId, sortBy: sortBy);
     if (res case Success(:final response)) {
       if (response?.items case final items? when items.isNotEmpty) {
         loadingState.value.data!

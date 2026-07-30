@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:PiliPlus/models/common/enum_with_label.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/menu_row.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
-import 'package:PiliPlus/plugin/pl_player/models/heart_beat_type.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:collection/collection.dart';
@@ -14,7 +13,7 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 
 enum _ShutdownType with EnumWithLabel {
   pause('暂停视频'),
-  exit('退出APP')
+  exit('退出APP'),
   ;
 
   @override
@@ -110,7 +109,7 @@ class ShutdownTimerService {
     if (PlPlayerController.instance case final player?) {
       final res = player.makeHeartBeat(
         player.position.value,
-        type: HeartBeatType.completed,
+        type: .completed,
         isManual: true,
       );
       if (res != null) {
@@ -148,7 +147,7 @@ class ShutdownTimerService {
     }
     PageUtils.showVideoBottomSheet(
       context,
-      isFullScreen: () => isFullScreen,
+      maxWidth: 512,
       child: StatefulBuilder(
         builder: (_, setState) {
           final ThemeData theme = Theme.of(context);
@@ -166,7 +165,7 @@ class ShutdownTimerService {
                     const Center(child: Text('定时关闭', style: titleStyle)),
                     const SizedBox(height: 10),
                     ...{...scheduleTimeMinutes, _durationInMinutes}
-                        .sorted((a, b) => a.compareTo(b))
+                        .sorted(Comparable.compare)
                         .map(
                           (minutes) => ListTile(
                             dense: true,

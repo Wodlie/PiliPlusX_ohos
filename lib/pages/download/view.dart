@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/appbar/appbar.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
+import 'package:PiliPlus/common/widgets/cached_layout_builder.dart';
 import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
@@ -10,6 +12,7 @@ import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/select_mask.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
+import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/models_new/download/download_info.dart';
 import 'package:PiliPlus/pages/download/controller.dart';
 import 'package:PiliPlus/pages/download/detail/view.dart';
@@ -18,13 +21,17 @@ import 'package:PiliPlus/pages/download/search/view.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/utils/cache_manager.dart';
 import 'package:PiliPlus/utils/grid.dart';
+import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/share_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart'
     hide SliverGridDelegateWithMaxCrossAxisExtent;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
+import 'package:path/path.dart' as path;
+import 'package:share_plus/share_plus.dart';
 
 class DownloadPage extends StatefulWidget {
   const DownloadPage({super.key});
@@ -42,6 +49,43 @@ class _DownloadPageState extends State<DownloadPage> with GridMixin {
   void dispose() {
     _progress.dispose();
     super.dispose();
+  }
+
+  Future<void> _shareEntries(List<BiliDownloadEntryInfo> entries) async {
+    final xFiles = <XFile>[];
+    for (final entry in entries) {
+      final videoFileName = entry.mediaType == 1
+          ? PathUtils.videoNameType1
+          : PathUtils.videoNameType2;
+      final videoPath = path.join(
+        entry.entryDirPath,
+        entry.typeTag,
+        videoFileName,
+      );
+      final videoFile = File(videoPath);
+      if (videoFile.existsSync()) {
+        xFiles.add(XFile(videoPath, name: '${entry.title}.mp4'));
+      }
+      if (entry.mediaType != 1 && entry.hasDashAudio) {
+        final audioPath = path.join(
+          entry.entryDirPath,
+          entry.typeTag,
+          PathUtils.audioNameType2,
+        );
+        final audioFile = File(audioPath);
+        if (audioFile.existsSync()) {
+          xFiles.add(XFile(audioPath, name: 'audio_${entry.title}.m4s'));
+        }
+      }
+    }
+    if (xFiles.isEmpty) {
+      SmartDialog.showToast('没有可分享的文件');
+      return;
+    }
+    await Share.shareXFiles(
+      xFiles,
+      sharePositionOrigin: await ShareUtils.sharePositionOrigin,
+    );
   }
 
   @override
@@ -85,6 +129,23 @@ class _DownloadPageState extends State<DownloadPage> with GridMixin {
                 },
                 child: Text(
                   '更新',
+                  style: TextStyle(color: theme.colorScheme.onSurface),
+                ),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () async {
+                  final allChecked = _controller.allChecked.toSet();
+                  final list = <BiliDownloadEntryInfo>[];
+                  for (final page in allChecked) {
+                    list.addAll(page.entries);
+                  }
+                  await _shareEntries(list);
+                },
+                child: Text(
+                  '分享',
                   style: TextStyle(color: theme.colorScheme.onSurface),
                 ),
               ),
@@ -304,7 +365,7 @@ class _DownloadPageState extends State<DownloadPage> with GridMixin {
                 children: [
                   AspectRatio(
                     aspectRatio: Style.aspectRatio,
-                    child: LayoutBuilder(
+                    child: CachedLayoutBuilder(
                       builder: (context, constraints) => NetworkImgLayer(
                         src: pageInfo.cover,
                         width: constraints.maxWidth,
@@ -358,8 +419,8 @@ class _DownloadPageState extends State<DownloadPage> with GridMixin {
                       ),
                     ),
                     Row(
-                      crossAxisAlignment: .end,
-                      mainAxisAlignment: .spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           '${CacheManager.formatSize(pageInfo.entries.fold(0, (p, n) => p + n.totalBytes))}  ${first.ownerName ?? ""}',

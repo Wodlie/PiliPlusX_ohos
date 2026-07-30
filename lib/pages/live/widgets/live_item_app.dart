@@ -1,4 +1,3 @@
-import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/image/image_save.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
@@ -22,7 +21,7 @@ class LiveCardVApp extends StatelessWidget {
   Widget build(BuildContext context) {
     void onLongPress() => imageSaveDialog(
       title: item.title,
-      cover: item.cover,
+      cover: showFirstFrame ? item.systemCover : item.cover,
     );
     return Card(
       clipBehavior: Clip.hardEdge,
@@ -33,7 +32,7 @@ class LiveCardVApp extends StatelessWidget {
         child: Column(
           children: [
             AspectRatio(
-              aspectRatio: StyleString.aspectRatio,
+              aspectRatio: Style.aspectRatio,
               child: LayoutBuilder(
                 builder: (context, boxConstraints) {
                   double maxWidth = boxConstraints.maxWidth;
@@ -42,10 +41,10 @@ class LiveCardVApp extends StatelessWidget {
                     clipBehavior: Clip.none,
                     children: [
                       NetworkImgLayer(
-                        src: item.cover!,
+                        src: showFirstFrame ? item.systemCover : item.cover,
                         width: maxWidth,
                         height: maxHeight,
-                        borderRadius: BorderRadius.zero,
+                        borderRadius: BorderRadius.zero, // 此处应为非表情类型，且默认不需要圆角
                       ),
                       Positioned(
                         left: 0,

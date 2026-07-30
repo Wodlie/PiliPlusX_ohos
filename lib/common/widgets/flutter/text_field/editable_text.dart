@@ -7097,10 +7097,3 @@ class _OverridingTextStyleTextSpanUtils {
     );
   }
 }
-
-class ExtendSelectionByPageIntent extends DirectionalCaretMovementIntent {
-  const ExtendSelectionByPageIntent({
-    required bool forward,
-    required bool collapseSelection,
-  }) : super(forward, collapseSelection);
-}
