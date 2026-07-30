@@ -1,11 +1,6 @@
 // ignore_for_file: constant_identifier_names
 
 abstract final class SettingBoxKey {
-  static const String enableLGBar = 'enableLGBar',
-      enableStatusBarTapToTop = 'enableStatusBarTapToTop',
-      showActualVolume = 'showActualVolume',
-      enableHdsBar = 'enableHdsBar';
-
   static const String btmProgressBehavior = 'btmProgressBehavior',
       defaultVideoQa = 'defaultVideoQa',
       defaultVideoQaCellular = 'defaultVideoQaCellular',
@@ -37,6 +32,10 @@ abstract final class SettingBoxKey {
       playerVolume = 'playerVolume',
       maxVolume = 'maxVolume';
 
+  @Deprecated('use preferCodecs instead')
+  static const String defaultDecode = 'defaultDecode',
+      secondDecode = 'secondDecode';
+
   static const String enableVerticalExpand = 'enableVerticalExpand',
       feedBackEnable = 'feedBackEnable',
       enableLongShowControl = 'enableLongShowControl',
@@ -60,18 +59,31 @@ abstract final class SettingBoxKey {
       banWordForRecommend = 'banWordForRecommend',
       applyFilterToRelatedVideos = 'applyFilterToRelatedVideos',
       autoUpdate = 'autoUpdate',
+      autoClearCache = 'autoClearCache',
       maxCacheSize = 'maxCacheSize',
+      apiHKUrl = 'apiHKUrl',
       defaultShowComment = 'defaultShowComment',
+      defaultShowWatchLater = 'defaultShowWatchLater',
+      defaultAddWatchLater = 'defaultAddWatchLater',
       replySortType = 'replySortType',
       defaultDynamicType = 'defaultDynamicType',
       showDynInteraction = 'showDynInteraction',
       enableHotKey = 'enableHotKey',
       enableSearchRcmd = 'enableSearchRcmd',
       enableQuickFav = 'enableQuickFav',
+      enableQuickShare = 'enableQuickShare',
       enableWordRe = 'enableWordRe',
       enableSearchWord = 'enableSearchWord',
       enableSystemProxy = 'enableSystemProxy',
       enableAi = 'enableAi',
+      enableAiSummaryBackground = 'enableAiSummaryBackground',
+      aiSummaryService = 'aiSummaryService',
+      aiSummaryBaseUrl = 'aiSummaryBaseUrl',
+      aiSummaryApiKey = 'aiSummaryApiKey',
+      aiSummaryTextModel = 'aiSummaryTextModel',
+      aiSummaryMultimodalModel = 'aiSummaryMultimodalModel',
+      aiSummaryTimeoutSeconds = 'aiSummaryTimeoutSeconds',
+      enableCommentTranslate = 'enableCommentTranslate',
       disableLikeMsg = 'disableLikeMsg',
       defaultHomePage = 'defaultHomePage',
       previewQuality = 'previewQuality',
@@ -94,6 +106,8 @@ abstract final class SettingBoxKey {
       cdnSpeedTest = 'cdnSpeedTest',
       horizontalPreview = 'horizontalPreview',
       banWordForReply = 'banWordForReply',
+      defaultAppealReason = 'defaultAppealReason',
+      minLevelForReply = 'minLevelForReply',
       banWordForZone = 'banWordForZone',
       savedRcmdTip = 'savedRcmdTip',
       openInBrowser = 'openInBrowser',
@@ -118,6 +132,7 @@ abstract final class SettingBoxKey {
       isPureBlackTheme = 'isPureBlackTheme',
       antiGoodsDyn = 'antiGoodsDyn',
       antiGoodsReply = 'antiGoodsReply',
+      showBlockedReplyBanner = 'showBlockedReplyBanner',
       expandDynLivePanel = 'expandDynLivePanel',
       springDescription = 'springDescription',
       enableHttp2 = 'enableHttp2',
@@ -134,7 +149,10 @@ abstract final class SettingBoxKey {
       liveQualityCellular = 'liveQualityCellular',
       appFontWeight = 'appFontWeight',
       fastForBackwardDuration = 'fastForBackwardDuration',
+      fastForBackwardDuration_ = 'fastForBackwardDuration_',
       recordSearchHistory = 'recordSearchHistory',
+      clipboardSearchIncognito = 'clipboardSearchIncognito',
+      showClipboardSearch = 'showClipboardSearch',
       showPgcTimeline = 'showPgcTimeline',
       pageTransition = 'pageTransition',
       optTabletNav = 'optTabletNav',
@@ -144,6 +162,7 @@ abstract final class SettingBoxKey {
       dynamicDetailRatio = 'dynamicDetailRatio',
       directExitOnBack = 'directExitOnBack',
       quickFavId = 'quickFavId',
+      quickShareId = 'quickShareId',
       showFsScreenshotBtn = 'showFsScreenshotBtn',
       showFsLockBtn = 'showFsLockBtn',
       silentDownImg = 'silentDownImg',
@@ -153,13 +172,17 @@ abstract final class SettingBoxKey {
       setSystemBrightness = 'setSystemBrightness',
       downloadPath = 'downloadPath',
       followOrderType = 'followOrderType',
+      saveImgPath = 'saveImgPath',
+      saveScreenshotPath = 'saveScreenshotPath',
       enableImgMenu = 'enableImgMenu',
+      showHomeRefreshFab = 'showHomeRefreshFab',
+      showDynamicsRefreshFab = 'showDynamicsRefreshFab',
       showDynDispute = 'showDynDispute',
       touchSlopH = 'touchSlopH',
       floatingNavBar = 'floatingNavBar',
       removeSafeArea = 'removeSafeArea',
+      accountDisplayName = 'accountDisplayName',
       angleDegrees = 'angleDegrees',
-      allowRotateScreen = 'allowRotateScreen',
       liveStream = 'liveStream';
 
   static const String minimizeOnExit = 'minimizeOnExit',
@@ -187,6 +210,7 @@ abstract final class SettingBoxKey {
       webdavDirectory = 'webdavDirectory';
 
   static const String enableSponsorBlock = 'enableSponsorBlock',
+      suppressSponsorBlockIncognito = 'suppressSponsorBlockIncognito',
       blockSettings = 'blockSettings',
       blockLimit = 'blockLimit',
       blockColor = 'blockColor',
@@ -194,6 +218,15 @@ abstract final class SettingBoxKey {
       blockToast = 'blockToast',
       blockServer = 'blockServer',
       blockTrack = 'blockTrack';
+
+  static const String enableAtFilter = 'enableAtFilter',
+      enableAtFilterPureAt = 'enableAtFilterPureAt',
+      enableAtFilterBodyLength = 'enableAtFilterBodyLength',
+      atFilterBodyLengthThreshold = 'atFilterBodyLengthThreshold',
+      enableAtFilterAtCount = 'enableAtFilterAtCount',
+      atFilterAtCountThreshold = 'atFilterAtCountThreshold',
+      enableAtFilterLikeExempt = 'enableAtFilterLikeExempt',
+      atFilterLikeExemptThreshold = 'atFilterLikeExemptThreshold';
 
   static const String enableShowDanmaku = 'enableShowDanmaku',
       enableShowLiveDanmaku = 'enableShowLiveDanmaku',
@@ -230,6 +263,8 @@ abstract final class SettingBoxKey {
       dynamicsShowAllFollowedUp = 'dynamicsShowAllFollowedUp',
       useSideBar = 'useSideBar',
       enableMYBar = 'enableMYBar',
+      hideStatusBar = 'hideStatusBar',
+      useSystemFont = 'useSystemFont',
       hideTopBar = 'hideSearchBar',
       hideBottomBar = 'hideTabBar',
       barHideType = 'barHideType',
@@ -241,7 +276,35 @@ abstract final class SettingBoxKey {
       tempPlayerConf = 'tempPlayerConf',
       reduceLuxColor = 'reduceLuxColor',
       liveCdnUrl = 'liveCdnUrl',
-      saveReply = 'saveReply';
+      saveReply = 'saveReply',
+      manualLoadCommentImage = 'manualLoadCommentImage',
+      enableCustomApiHost = 'enableCustomApiHost',
+      customBaseUrl = 'customBaseUrl',
+      customApiBaseUrl = 'customApiBaseUrl',
+      customTUrl = 'customTUrl',
+      customAppBaseUrl = 'customAppBaseUrl',
+      customLiveBaseUrl = 'customLiveBaseUrl',
+      customPassBaseUrl = 'customPassBaseUrl',
+      customMessageBaseUrl = 'customMessageBaseUrl',
+      customSpaceBaseUrl = 'customSpaceBaseUrl',
+      customAccountBaseUrl = 'customAccountBaseUrl',
+      customMallBaseUrl = 'customMallBaseUrl',
+      customDynamicShareBaseUrl = 'customDynamicShareBaseUrl',
+      customSearchBaseUrl = 'customSearchBaseUrl';
+
+  static const String enableImageBlock = 'enableImageBlock',
+      imageBlockThreshold = 'imageBlockThreshold',
+      imageBlockFlipEnabled = 'imageBlockFlipEnabled',
+      imageBlockRotateEnabled = 'imageBlockRotateEnabled',
+      imageBlockDisplayMode = 'imageBlockDisplayMode',
+      imageBlockHashList = 'imageBlockHashList';
+
+  // OHOS-specific keys
+  static const String enableLGBar = 'enableLGBar',
+      enableStatusBarTapToTop = 'enableStatusBarTapToTop',
+      showActualVolume = 'showActualVolume',
+      allowRotateScreen = 'allowRotateScreen',
+      expandBuffer = 'expandBuffer';
 }
 
 abstract final class LocalCacheKey {
@@ -250,7 +313,9 @@ abstract final class LocalCacheKey {
       danmakuFilterRules = 'danmakuFilterRules',
       mixinKey = 'mixinKey',
       timeStamp = 'timeStamp',
-      buvid = 'buvid';
+      legacyBuvid = 'buvid',
+      guestBuvid = 'guestBuvid',
+      accountUnameMap = 'accountUnameMap';
 }
 
 abstract final class VideoBoxKey {

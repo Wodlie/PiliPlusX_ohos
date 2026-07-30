@@ -1,8 +1,12 @@
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/accounts/app_device_profile.dart';
+import 'package:PiliPlus/utils/accounts/identity_core.dart';
+import 'package:PiliPlus/utils/accounts/identity_persistence.dart';
 import 'package:PiliPlus/utils/accounts/grpc_headers.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -18,6 +22,8 @@ sealed class Account {
   set activated(bool value) => throw UnimplementedError();
 
   String? get accessKey => throw UnimplementedError();
+
+  String get buvid => throw UnimplementedError();
 
   DefaultCookieJar get cookieJar => throw UnimplementedError();
 
@@ -54,6 +60,14 @@ class LoginAccount extends Account {
   @override
   @HiveField(3)
   final Set<AccountType> type;
+  @override
+  @HiveField(4)
+  final String buvid;
+  @HiveField(5)
+  final AppDeviceProfile? deviceProfile;
+
+  final bool _needsBuvidPersist;
+  bool get needsBuvidPersist => _needsBuvidPersist || deviceProfile == null;
 
   @override
   bool activated = false;
@@ -69,9 +83,8 @@ class LoginAccount extends Account {
   };
 
   @override
-  late final Map<String, String> grpcHeaders = GrpcHeaders.newHeaders(
-    accessKey,
-  );
+  Map<String, String> get grpcHeaders =>
+      GrpcHeaders.newHeaders(accessKey, buvid, deviceProfile, mid);
 
   @override
   late final String csrf =
@@ -88,7 +101,7 @@ class LoginAccount extends Account {
   @override
   Future<void> onChange() {
     assert(!_hasDelete);
-    return _box.put(_midStr, this);
+    return _box.put(_midStr, _persistedAccount);
   }
 
   @override
@@ -97,30 +110,119 @@ class LoginAccount extends Account {
     'accessKey': accessKey,
     'refresh': refresh,
     'type': type.map((i) => i.index).toList(),
+    'buvid': buvid,
+    if (deviceProfile != null) 'deviceProfile': deviceProfile!.toJson(),
   };
 
-  late final String _midStr = cookieJar
-      .domainCookies['bilibili.com']!['/']!['DedeUserID']!
-      .cookie
-      .value;
+  final String _midStr;
 
   late final Box<LoginAccount> _box = Accounts.account;
 
-  LoginAccount(
+  factory LoginAccount(
+    DefaultCookieJar cookieJar,
+    String? accessKey,
+    String? refresh, [
+    Set<AccountType>? type,
+    String? buvid,
+    AppDeviceProfile? deviceProfile,
+  ]) {
+    return LoginAccount._resolve(
+      cookieJar,
+      accessKey,
+      refresh,
+      type: type,
+      buvid: buvid,
+      deviceProfile: deviceProfile,
+      persistResolvedDeviceProfile: true,
+    );
+  }
+
+  factory LoginAccount.restored(
+    DefaultCookieJar cookieJar,
+    String? accessKey,
+    String? refresh, [
+    Set<AccountType>? type,
+    String? buvid,
+    AppDeviceProfile? deviceProfile,
+  ]) {
+    return LoginAccount._resolve(
+      cookieJar,
+      accessKey,
+      refresh,
+      type: type,
+      buvid: buvid,
+      deviceProfile: deviceProfile,
+      persistResolvedDeviceProfile: false,
+    );
+  }
+
+  factory LoginAccount._resolve(
+    DefaultCookieJar cookieJar,
+    String? accessKey,
+    String? refresh, {
+    Set<AccountType>? type,
+    String? buvid,
+    required AppDeviceProfile? deviceProfile,
+    required bool persistResolvedDeviceProfile,
+  }) {
+    final resolved = _resolveLoginAccountIdentity(cookieJar, buvid);
+    final resolvedDeviceProfile =
+        deviceProfile ??
+        (persistResolvedDeviceProfile
+            ? AppDeviceProfiles.defaultDeviceProfileForOwner(
+                resolved.resolution.profile.owner.key,
+              )
+            : null);
+    return LoginAccount._(
+      cookieJar,
+      accessKey,
+      refresh,
+      type ?? {},
+      resolved.midStr,
+      resolved.resolution.profile.buvid,
+      resolvedDeviceProfile,
+      resolved.resolution.source == IdentityPersistenceSource.generated ||
+          resolved.resolution.source == IdentityPersistenceSource.legacy,
+    );
+  }
+
+  LoginAccount._(
     this.cookieJar,
     this.accessKey,
-    this.refresh, [
-    Set<AccountType>? type,
-  ]) : type = type ?? {} {
+    this.refresh,
+    this.type,
+    this._midStr,
+    this.buvid,
+    this.deviceProfile,
+    this._needsBuvidPersist,
+  ) {
     cookieJar.setBuvid3();
   }
 
-  factory LoginAccount.fromJson(Map json) => LoginAccount(
+  factory LoginAccount.fromJson(Map json) => LoginAccount.restored(
     BiliCookieJar.fromJson(json['cookies']),
     json['accessKey'],
     json['refresh'],
     (json['type'] as Iterable?)?.map((i) => AccountType.values[i]).toSet(),
+    json['buvid'],
+    switch (json['deviceProfile']) {
+      final Map deviceProfile => AppDeviceProfile.fromJson(deviceProfile),
+      _ => null,
+    },
   );
+
+  LoginAccount get _persistedAccount => deviceProfile == null
+      ? LoginAccount._(
+          cookieJar,
+          accessKey,
+          refresh,
+          {...type},
+          _midStr,
+          buvid,
+          AppDeviceProfiles.defaultDeviceProfileForOwner('account:$mid'),
+          false,
+        )
+      : this;
 
   @override
   int get hashCode => mid.hashCode;
@@ -138,6 +240,8 @@ class AnonymousAccount extends Account {
   @override
   final String? accessKey = null;
   @override
+  String get buvid => Pref.guestBuvid;
+  @override
   final String? refresh = null;
   @override
   final Set<AccountType> type = {};
@@ -149,15 +253,18 @@ class AnonymousAccount extends Account {
   final Map<String, String> headers = Constants.baseHeaders;
 
   @override
-  final Map<String, String> grpcHeaders = GrpcHeaders.newHeaders();
+  Map<String, String> get grpcHeaders => GrpcHeaders.newHeaders(null, buvid);
 
   @override
   bool activated = false;
 
   @override
   Future<void> delete() {
-    grpcHeaders['x-bili-fawkes-req-bin'] = GrpcHeaders.fawkes;
-    return cookieJar.deleteAll().whenComplete(cookieJar.setBuvid3);
+    activated = false;
+    return Future.wait([
+      cookieJar.deleteAll(),
+      Pref.deleteGuestBuvid(),
+    ]).whenComplete(cookieJar.setBuvid3);
   }
 
   static final _instance = AnonymousAccount._();
@@ -173,6 +280,27 @@ class AnonymousAccount extends Account {
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is AnonymousAccount && cookieJar == other.cookieJar);
+}
+
+({
+  String midStr,
+  IdentityPersistenceResolution resolution,
+})
+_resolveLoginAccountIdentity(
+  DefaultCookieJar cookieJar,
+  String? storedBuvid,
+) {
+  final midStr = cookieJar
+      .domainCookies['bilibili.com']!['/']!['DedeUserID']!
+      .cookie
+      .value;
+  return (
+    midStr: midStr,
+    resolution: OwnerScopedIdentityPersistence.resolve(
+      owner: IdentityOwnerKey.account(int.parse(midStr)),
+      storedBuvid: storedBuvid,
+    ),
+  );
 }
 
 extension BiliCookie on Cookie {

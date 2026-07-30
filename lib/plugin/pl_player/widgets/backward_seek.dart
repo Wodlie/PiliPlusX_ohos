@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:os_type/os_type.dart';
 
 class BackwardSeekIndicator extends StatefulWidget {
   final ValueChanged<Duration> onSubmitted;
@@ -48,6 +49,45 @@ class BackwardSeekIndicatorState extends State<BackwardSeekIndicator> {
 
   @override
   Widget build(BuildContext context) {
+    final indicator = Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.fast_rewind,
+          size: 24.0,
+          color: Colors.white,
+        ),
+        const SizedBox(height: 8.0),
+        Text(
+          '快退${duration.inSeconds}秒',
+          style: const TextStyle(
+            fontSize: 12.0,
+            color: Colors.white,
+          ),
+        ),
+      ],
+    );
+
+    if (OS.isHarmony) {
+      // 避免在 OHOS 视频 Surface 上创建覆盖半屏的渐变/Ink saveLayer。
+      return GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: increment,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xCC000000),
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+            child: indicator,
+          ),
+        ),
+      );
+    }
+
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
@@ -65,26 +105,7 @@ class BackwardSeekIndicatorState extends State<BackwardSeekIndicator> {
             ),
           ),
           alignment: Alignment.center,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.fast_rewind,
-                size: 24.0,
-                color: Colors.white,
-              ),
-              const SizedBox(height: 8.0),
-              Text(
-                '快退${duration.inSeconds}秒',
-                style: const TextStyle(
-                  fontSize: 12.0,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
+          child: indicator,
         ),
       ),
     );

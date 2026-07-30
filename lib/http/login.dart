@@ -8,6 +8,9 @@ import 'package:PiliPlus/models/login/model.dart';
 import 'package:PiliPlus/models_new/login_devices/data.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/utils/accounts/identity_core/identity_owner.dart';
+import 'package:PiliPlus/utils/accounts/identity_core/identity_generators.dart';
+import 'package:PiliPlus/utils/accounts/request_identity_adapter.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
@@ -16,26 +19,51 @@ import 'package:dio/dio.dart';
 import 'package:encrypt/encrypt.dart';
 
 abstract final class LoginHttp {
-  static final String deviceId = LoginUtils.genDeviceId();
-  static String get buvid => LoginUtils.buvid;
-  static final Map<String, String> headers = {
-    'buvid': buvid,
-    'env': 'prod',
-    'app-key': 'android_hd',
-    'user-agent': Constants.userAgent,
-    'x-bili-trace-id': Constants.traceId,
-    'x-bili-aurora-eid': '',
-    'x-bili-aurora-zone': '',
-    'bili-http-engine': 'cronet',
-    'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
-  };
+  static RequestIdentityAdapter createLoginSessionIdentity({
+    String scope = 'login-session',
+  }) {
+    final buvid = IdentityCoreGenerators.generateBuvidForOwner(
+      IdentityOwnerKey.workflow(scope),
+    );
+    return RequestIdentityAdapter.fromBuvid(
+      buvid: buvid,
+      userAgent: Constants.userAgent,
+      scope: scope,
+    );
+  }
 
+  static Map<String, String> appHeaders({
+    required String buvid,
+    required String appKey,
+    required String userAgent,
+    String? contentType,
+    Account? account,
+    RequestIdentityAdapter? identity,
+  }) {
+    final resolvedIdentity =
+        identity ??
+            (account == null
+                ? RequestIdentityAdapter.fromBuvid(
+                    buvid: buvid,
+                    userAgent: userAgent,
+                    scope: 'login-http:$appKey',
+                  )
+                : RequestIdentityAdapter.fromAccount(
+                    account: account,
+                    userAgent: userAgent,
+                  ));
+    return resolvedIdentity.appHeaders(
+      appKey: appKey,
+      userAgent: userAgent,
+      contentType: contentType,
+    );
+  }
   @pragma('vm:notify-debugger-on-exception')
-  static Future<LoadingState<({String authCode, String url})>>
-  getHDcode() async {
+  static Future<LoadingState<({String authCode, String url})>> getHDcode({
+    required RequestIdentityAdapter identity,
+  }) async {
     final params = {
-      // 'local_id': 'Y952A395BB157D305D8A8340FC2AAECECE17',
-      'local_id': '0',
+      'local_id': identity.localId,
       'platform': 'android',
       'mobi_app': 'android_hd',
     };
@@ -54,10 +82,13 @@ abstract final class LoginHttp {
     }
   }
 
-  static Future codePoll(String authCode) async {
+  static Future codePoll(
+    String authCode, {
+    required RequestIdentityAdapter identity,
+  }) async {
     final params = {
       'auth_code': authCode,
-      'local_id': '0',
+      'local_id': identity.localId,
     };
     AppSign.appSign(params);
     final res = await Request().post(Api.qrcodePoll, queryParameters: params);
@@ -95,16 +126,18 @@ abstract final class LoginHttp {
   static Future sendSmsCode({
     required Object cid,
     required String tel,
+    required RequestIdentityAdapter identity,
     // String? deviceTouristId,
     String? geeChallenge,
     String? geeSeccode,
     String? geeValidate,
     String? recaptchaToken,
   }) async {
+    final guestBuvid = identity.buvid;
     int timestamp = DateTime.now().millisecondsSinceEpoch;
     final data = {
       'build': '2001100',
-      'buvid': buvid,
+      'buvid': guestBuvid,
       'c_locale': 'zh_CN',
       'channel': 'master',
       'cid': cid,
@@ -113,10 +146,10 @@ abstract final class LoginHttp {
       'gee_challenge': ?geeChallenge,
       'gee_seccode': ?geeSeccode,
       'gee_validate': ?geeValidate,
-      'local_id': buvid,
+      'local_id': identity.localId,
       // https://chinggg.github.io/post/appre/
       'login_session_id': md5
-          .convert(ascii.encode(buvid + timestamp.toString()))
+          .convert(ascii.encode(guestBuvid + timestamp.toString()))
           .toString(),
       'mobi_app': 'android_hd',
       'platform': 'android',
@@ -133,7 +166,13 @@ abstract final class LoginHttp {
       data: data,
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
-        headers: headers,
+        headers: appHeaders(
+          buvid: guestBuvid,
+          appKey: 'android_hd',
+          userAgent: Constants.userAgent,
+          contentType: Headers.formUrlEncodedContentType,
+          identity: identity,
+        ),
       ),
     );
 
@@ -194,39 +233,37 @@ abstract final class LoginHttp {
     required String password,
     required String key,
     required String salt,
+    required RequestIdentityAdapter identity,
     String? geeChallenge,
     String? geeSeccode,
     String? geeValidate,
     String? recaptchaToken,
   }) async {
+    final guestBuvid = identity.buvid;
     dynamic publicKey = RSAKeyParser().parse(key);
     String passwordEncrypted = Encrypter(
       RSA(publicKey: publicKey),
     ).encrypt(salt + password).base64;
 
     Map<String, String> data = {
-      'bili_local_id': deviceId,
+      ...identity.loginPayloadFields,
       'build': '2001100',
-      'buvid': buvid,
+      'buvid': guestBuvid,
       'c_locale': 'zh_CN',
       'channel': 'master',
       'device': 'phone',
-      'device_id': deviceId,
       //'device_meta': '',
-      'device_name': 'vivo',
-      'device_platform': 'Android14vivo',
       'disable_rcmd': '0',
       'dt': Uri.encodeComponent(
         Encrypter(
           RSA(publicKey: publicKey),
-        ).encrypt(Utils.generateRandomString(16)).base64,
+        ).encrypt(Utils.generateSecureRandomString(16)).base64,
       ),
       'from_pv': 'main.homepage.avatar-nologin.all.click',
       'from_url': Uri.encodeComponent('bilibili://pegasus/promo'),
       'gee_challenge': ?geeChallenge,
       'gee_seccode': ?geeSeccode,
       'gee_validate': ?geeValidate,
-      'local_id': buvid, //LoginUtils.generateBuvid(),
       'mobi_app': 'android_hd',
       'password': passwordEncrypted,
       'permission': 'ALL',
@@ -242,7 +279,13 @@ abstract final class LoginHttp {
       data: data,
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
-        headers: headers,
+        headers: appHeaders(
+          buvid: guestBuvid,
+          appKey: 'android_hd',
+          userAgent: Constants.userAgent,
+          contentType: Headers.formUrlEncodedContentType,
+          identity: identity,
+        ),
         //responseType: ResponseType.plain
       ),
     );
@@ -270,32 +313,30 @@ abstract final class LoginHttp {
     required String code,
     required Object cid,
     required String key,
+    required RequestIdentityAdapter identity,
   }) async {
+    final guestBuvid = identity.buvid;
     dynamic publicKey = RSAKeyParser().parse(key);
     Map<String, Object> data = {
-      'bili_local_id': deviceId,
+      ...identity.loginPayloadFields,
       'build': '2001100',
-      'buvid': buvid,
+      'buvid': guestBuvid,
       'c_locale': 'zh_CN',
       'captcha_key': captchaKey,
       'channel': 'master',
       'cid': cid,
       'code': code,
       'device': 'phone',
-      'device_id': deviceId,
       //'device_meta': '',
-      'device_name': 'vivo',
-      'device_platform': 'Android14vivo',
       // 'device_tourist_id': '',
       'disable_rcmd': '0',
       'dt': Uri.encodeComponent(
         Encrypter(
           RSA(publicKey: publicKey),
-        ).encrypt(Utils.generateRandomString(16)).base64,
+        ).encrypt(Utils.generateSecureRandomString(16)).base64,
       ),
       'from_pv': 'main.my-information.my-login.0.click',
       'from_url': Uri.encodeComponent('bilibili://user_center/mine'),
-      'local_id': buvid,
       'mobi_app': 'android_hd',
       'platform': 'android',
       's_locale': 'zh_CN',
@@ -308,7 +349,13 @@ abstract final class LoginHttp {
       data: data,
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
-        headers: headers,
+        headers: appHeaders(
+          buvid: guestBuvid,
+          appKey: 'android_hd',
+          userAgent: Constants.userAgent,
+          contentType: Headers.formUrlEncodedContentType,
+          identity: identity,
+        ),
         //responseType: ResponseType.plain
       ),
     );
@@ -451,20 +498,18 @@ abstract final class LoginHttp {
   // 风控验证手机：用oauthCode换回accessToken
   static Future oauth2AccessToken({
     required String code,
+    required RequestIdentityAdapter identity,
   }) async {
+    final guestBuvid = identity.buvid;
     final Map<String, String> data = {
       'build': '2001100',
-      'buvid': buvid,
+      'buvid': guestBuvid,
       // 'c_locale': 'zh_CN',
       // 'channel': 'master',
       'code': code,
-      // 'device': 'phone',
-      // 'device_id': deviceId,
-      // 'device_name': 'vivo',
-      // 'device_platform': 'Android14vivo',
       'disable_rcmd': '0',
       'grant_type': 'authorization_code',
-      'local_id': buvid,
+      'local_id': identity.localId,
       'mobi_app': 'android_hd',
       'platform': 'android',
       // 's_locale': 'zh_CN',
@@ -476,7 +521,13 @@ abstract final class LoginHttp {
       data: data,
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
-        headers: headers,
+        headers: appHeaders(
+          buvid: guestBuvid,
+          appKey: 'android_hd',
+          userAgent: Constants.userAgent,
+          contentType: Headers.formUrlEncodedContentType,
+          identity: identity,
+        ),
       ),
     );
 

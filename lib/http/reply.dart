@@ -63,7 +63,9 @@ abstract final class ReplyHttp {
     required int pageNum,
     required int type,
     bool isCheck = false,
+    Account? account,
   }) async {
+    final loginAccount = account ?? Accounts.reply;
     final res = await Request().get(
       Api.replyReplyList,
       queryParameters: {
@@ -72,9 +74,9 @@ abstract final class ReplyHttp {
         'pn': pageNum,
         'type': type,
         'sort': 1,
-        if (isLogin) 'csrf': Accounts.main.csrf,
+        if (isLogin) 'csrf': loginAccount.csrf,
       },
-      options: !isLogin ? options : null,
+      options: !isLogin ? options : Options(extra: {'account': loginAccount}),
     );
     if (res.data['code'] == 0) {
       ReplyReplyData replyData = ReplyReplyData.fromJson(res.data['data']);
@@ -101,9 +103,12 @@ abstract final class ReplyHttp {
         'oid': oid,
         'rpid': rpid,
         'action': action,
-        'csrf': Accounts.main.csrf,
+        'csrf': Accounts.reply.csrf,
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': Accounts.reply},
+      ),
     );
     if (res.data['code'] == 0) {
       return const Success(null);
@@ -126,9 +131,12 @@ abstract final class ReplyHttp {
         'oid': oid,
         'rpid': rpid,
         'action': action,
-        'csrf': Accounts.main.csrf,
+        'csrf': Accounts.reply.csrf,
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': Accounts.reply},
+      ),
     );
     if (res.data['code'] == 0) {
       return const Success(null);
@@ -167,9 +175,12 @@ abstract final class ReplyHttp {
         'type': type,
         'rpid': rpid,
         'action': isUpTop ? 0 : 1,
-        'csrf': Accounts.main.csrf,
+        'csrf': Accounts.reply.csrf,
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': Accounts.reply},
+      ),
     );
     if (res.data['code'] == 0) {
       return const Success(null);
@@ -189,7 +200,7 @@ abstract final class ReplyHttp {
       Api.replyReport,
       data: {
         'add_blacklist': banUid,
-        'csrf': Accounts.main.csrf,
+        'csrf': Accounts.reply.csrf,
         'gaia_source': 'main_h5',
         'oid': oid,
         'platform': 'android',
@@ -199,7 +210,10 @@ abstract final class ReplyHttp {
         'type': 1,
         if (reasonType == 0) 'content': reasonDesc!,
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': Accounts.reply},
+      ),
     );
 
     if (res.data['code'] == 0) {
@@ -232,6 +246,35 @@ abstract final class ReplyHttp {
     }
   }
 
+  /// 申诉评论。url 为评论区源 URL（如 https://www.bilibili.com/video/BVxxx）。
+  /// type 固定为 1（评论申诉类型），不是评论区 type。
+  static Future<LoadingState<Map<String, dynamic>>> appealComment({
+    required String url,
+    required String reason,
+  }) async {
+    final res = await Request().post(
+      Api.replyAppealSubmit,
+      data: {
+        'url': url,
+        'type': '1',
+        'reason': reason,
+        'csrf': Accounts.reply.csrf,
+      },
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': Accounts.reply},
+      ),
+    );
+    final code = res.data['code'] as int;
+    if (code == 0) {
+      return Success({
+        'successToast': res.data['data']?['success_toast'] ?? '申诉提交成功',
+      });
+    } else {
+      return Error(res.data['message'] ?? '申诉失败', code: code);
+    }
+  }
+
   static Future<LoadingState<void>> replySubjectModify({
     required int oid,
     required int type,
@@ -243,9 +286,12 @@ abstract final class ReplyHttp {
         'oid': oid,
         'type': type,
         'action': action,
-        'csrf': Accounts.main.csrf,
+        'csrf': Accounts.reply.csrf,
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        extra: {'account': Accounts.reply},
+      ),
     );
     if (res.data['code'] == 0) {
       if (res.data['data']?['action_toast'] case final String toast) {
