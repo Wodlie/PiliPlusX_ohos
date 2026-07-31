@@ -4,17 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // dimension_ext & iterable_ext — self-contained unit tests.
-// selectable_region_ext tests included here also compile cleanly
-// because the Flutter core types (SelectableRegion, SelectableRegionState)
-// are available without pulling in page_utils.dart.
+// selectable_region_ext was removed in Task 27: A's original extension
+// accesses private fields via `(this as dynamic)` (runtime NoSuchMethodError,
+// broken even in A). The "打开" menu is implemented natively in the
+// SelectableText context menus (content_panel.dart / reply_item_grpc.dart).
 import 'package:PiliPlus/grpc/bilibili/app/archive/v1.pb.dart'
     show Dimension;
 import 'package:PiliPlus/utils/extension/dimension_ext.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/nested_scroll_ext.dart';
-// selectable_region_ext excluded here because it transitively imports
-// page_utils.dart which hits pre-existing project-wide compilation errors.
-// See test/utils/selectable_region_ext_test.dart for standalone tests.
 
 void main() {
   group('dimension_ext — DimensionExt', () {

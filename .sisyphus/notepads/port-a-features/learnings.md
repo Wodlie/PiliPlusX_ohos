@@ -263,3 +263,39 @@ otification.metrics.axisDirection == .down 是 AxisDirection.down，不是 Scrol
 - **动态页 FAB 用 GetSingleTickerProviderStateMixin（A 同款）**：A 的 dynamics controller 用单 Ticker mixin + TabController(1 ticker) + fab AnimationController(2nd ticker) → 调试模式会触发 GetSingleTickerProviderStateMixin 的 multiple-tickers assert（release 无）。忠实移植 A，home 则按任务约束升 GetTickerProviderStateMixin。潜在 A 继承问题，真机若 debug 崩可后续升级 dynamics 为多 Ticker。
 - **home FAB 升级 GetTickerProviderStateMixin 无冲突**：GetX 的多 Ticker mixin 是超集（Set 跟踪 + onClose 断言 active ticker），tabController + fab 双 AnimationController 安全；home controller dispose 需加 _fabAnimationCtr?.dispose()（A 同款），否则 onClose 断言。
 - **analyze 23（基线 31 不增）**：改动 7+4 文件 0 error 0 warning；23 = 6 vendored + 17 test RED，其中 8 个（android_helper×6 + platform_utils isHarmony×2）被并行任务清零。残余 2 info 非本任务引入（common_dyn_page rendering import 改动前即冗余；home cascade_invocations 为 A verbatim 同款）。
+
+## [2026-08-01] Task: T33（关键路径冒烟报告）
+- **T6 harness 仍可重跑**：`%LOCALAPPDATA%\Temp\opencode\hive_migration_verify` 未删，`dart run bin/verify.dart` 直接复跑 31/31 PASS（T9 的 t9_harness 同理 56/56）——T33 无需新造 harness，复用即得运行级证据。
+- **account_type.dart 是零依赖纯枚举**（无 import）→ 可直接 `dart run` 做 AccountType.values 断言（6 值/序/desc），不必只靠 grep；wbi/grpc 头因依赖面重走 grep + 既有 harness 组合。
+- **analyze 错误级计数法**：`dart analyze --no-fatal-warnings` 总 issues（271）含 info/warning，验收只看 ` - error - ` 行；23 = 6 vendored（editable_text/vertical_slider）+ 17 test RED，PowerShell 正则 `^test[\\/]` 在双引号串里 `\\`→`\` 导致不匹配，要用单引号或 `[\\]` 写成 `[\\]`（PowerShell 里 `[\\\\/]`）。
+- **git status 未提交残留在 T33 属正常**：`M test/utils/extension_test.dart` + `D test/utils/selectable_region_ext_test.dart` 是 T27 的验证产物（已跑 24/24），HEAD 8723476f9 已含 batch4；T33 只读不改，不代 T27 收尾提交。
+- **runtime-pending 汇总方法**：grep 全部 evidence 的 `runtime-pending|仅设备|真机` 得到 15 项（batch0-smoke-plan §三 12 项 + F17/F19/T29 细分），写报告时引用每项 task evidence 行号。
+
+## [2026-08-01] Task: T32 — OHOS 保留 + 受保护文件 + 依赖 override 完整性检查
+### 结论：全部断言通过，0 违规。
+### 检查方法（可复用）
+- 基线 = 886b57dd9（batch0 recon），移植范围 = 50039f462..8723476f9（T5-T29 共 16 commit）。
+- **OHOS 保留 5 项**：SelectionText 移植文件 0 命中（真命中仅 pre-existing 定义 selection_text.dart + getSelectionText 方法名 + pb 生成文件）；TargetPlatform/Platform.is* 用 git diff --unified=0 只筛 ^\+ 行（删除旧桌面代码是预期）；text_selection.dart:2921/3044 逐行读确认仍注释 + git diff --name-only 确认文件未触碰；@Deprecated 用 storage_pref.dart 行数(1001==1001)证明字节未动；4 个「鸿蒙待适配」TODO 逐个 baseline/current 对文本（行号可漂移，内容必须一致）。
+- **受保护文件**：git log --name-only 全范围管道过滤 \.g\.dart$|\.pb.*\.dart$|GeneratedPluginRegistrant|bindings\.g\.dart|build-profile\.json5 即可，0 命中 = 0 触碰。
+- **依赖 override**：pubspec diff 应只含计划批准的新依赖（本波 = visibility_detector 一项）；gitcode.com 计数 current==baseline==13 是强证明。
+### 重要观察
+- 计划措辞"~37 gitcode overrides"实为"~37 git overrides（含 github cnoim/My-Resp forks）"：dependency_overrides 24 项（17 git-sourced）+ dependencies 区 git 依赖，gitcode 计数 13。断言时应数 git: 键（34）而非 gitcode URL。
+- 工作区有 pre-existing 未提交改动（AGENTS.md/ohos/AGENTS.md 知识库刷新、Task27 删 selectable_region_ext 测试），不属本波，勿误报为违规。
+
+## [2026-08-01] Task: T31
+
+### 19 功能族接线验证结果：19/19 PASS（无孤儿）
+
+- 方法：grep 符号 + 消费点双重验证，全部真实命中，无虚构。所有符号从 main.dart 可达链成立（main → /videoV,/history,/whisper,/setting,apiHostSetting → pages → http/grpc）。
+- 完整报告：.sisyphus/evidence/batch5-wiring.md。
+
+### 关键观察
+
+1. **Accounts.reply/blacklist getter**（accounts.dart:35,43）无直接 Accounts.reply 调用方，但经 ApiType.apiTypeSet 路由表（api_type.dart:102,111）+ account_mgr _resolveAccountSelection（:266-274）在运行时按 path 选择 reply/blacklist 账号——这是消费路径，非孤儿。对比 A 直接消费（http/black.dart 等），B 用路由表方式等价接线。
+2. **analyze 基线 31 errors 在 T18-T29 期间已降至 ~23-27**（孤儿 part 删除 -85、test RED 逐项清零），T31 纯验证无改动。
+3. **pmShare**：request_utils.dart:73 是 B 原有（SelectableText 适配），T22 只加 3 处 onLongPress 消费，未改函数本身。
+4. **viewPugv(progress:)**：page_utils.dart:745 签名已含 int? progress（T27 恢复），透传 toVideoPage:775。
+5. **insertOrAdd**：iterable_ext.dart:72 + extension_test 4 断言（24/24 PASS，T27）。
+6. **「打开」替代实现**：content_panel.dart:122 + reply_item_grpc.dart:1716，用 EditableTextState.textEditingValue 公共 API，A 原版 selectable_region_ext 未移植（T4 决策正确）。
+7. **videoPush/hideStatusBar/FAB/下载过滤/设置项** 作为补充锚点全部有消费点，无孤儿。
+8. **runtime-pending 8 项**（Stein/播放器/直播/快速分享/图片屏蔽/「打开」菜单/续播/无痕空降）按 batch0-smoke-plan §三 如实标注。

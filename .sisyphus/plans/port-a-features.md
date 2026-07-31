@@ -1981,7 +1981,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: 修复涉及的 lib/**/*.dart
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 31. 19 功能符号接线验证（grep/lsp）
+- [x] 31. 19 功能符号接线验证（grep/lsp）
 
   **What to do**:
   - 对 19 功能族逐一验证符号从 `lib/main.dart` 可达：
@@ -2025,7 +2025,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
 
   **Commit**: NO
 
-- [ ] 32. OHOS 保留 + 生成文件 + 依赖 override 完整性检查
+- [x] 32. OHOS 保留 + 生成文件 + 依赖 override 完整性检查
 
   **What to do**:
   - ast_grep 断言：无 `SelectionText(` 恢复、无 `TargetPlatform.macOS/windows/linux` 新增分支、`text_selection.dart:2921,3044` 注释完好、`@Deprecated` defaultDecode/secondDecode 保留、4 个「鸿蒙待适配」TODO 未动
@@ -2074,7 +2074,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
 
   **Commit**: NO
 
-- [ ] 33. 关键路径冒烟报告
+- [x] 33. 关键路径冒烟报告
 
   **What to do**:
   - 运行可执行断言（无设备）：
