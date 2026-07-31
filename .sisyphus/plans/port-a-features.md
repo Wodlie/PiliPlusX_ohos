@@ -990,7 +990,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/http/ai_summary_service_router.dart`（新）, `lib/http/bilibili_multimodal_summary_adapter.dart`（新）, `lib/http/bilibili_subtitle_summary_adapter.dart`（新）, `lib/http/video.dart`, `lib/pages/video/ai_conclusion/view.dart`, `lib/pages/setting/*`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 14. 评论屏蔽 checkBlockReason 5 策略 + BlockedReplyBanner
+- [x] 14. 评论屏蔽 checkBlockReason 5 策略 + BlockedReplyBanner
 
   **What to do**:
   - 按需重写 `lib/grpc/reply.dart`：恢复 `checkBlockReason`（关键词/带货/等级/@过滤/黑名单 5 策略）+ `blockReply`/`clearBlockedReasons`/`isClientBlocked`/`getBlockReason`/`getBriefBlockReason`（参照 A）

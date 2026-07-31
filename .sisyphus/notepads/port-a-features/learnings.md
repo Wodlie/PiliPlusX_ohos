@@ -105,7 +105,8 @@
 ## [2026-07-31] Task: T12（港澳台番剧 hk_bangumi + media_hk_bangumi + pgc 代理）
 - **B 的 http/search.dart 缺 storage_pref import**：A 有 utils/storage_pref.dart（line 17），B 的对应位置是 wbi_sign——补 hk 分支后必须补 import，否则 Pref undefined。移植 A 时**先对比 import 清单**。
 - **B 的 pgc/controller.dart 缺 http/api.dart import**：A 的 controller 引 Api.pgcTimeline/pgcIndexResult，B 之前硬编码在 PgcHttp 内；恢复 apiUrl 参数后 controller 直接引 Api，需补 import。
-- **apiUrl 参数恢复的调用方全量检查**：PgcHttp.pgcIndex/pgcTimeline 全库调用方只有 pgc/controller.dart（grep 确认 2 处）——加 equired String apiUrl 不破坏其他调用点。
+- **apiUrl 参数恢复的调用方全量检查**：PgcHttp.pgcIndex/pgcTimeline 全库调用方只有 pgc/controller.dart（grep 确认 2 处）——加 
+equired String apiUrl 不破坏其他调用点。
 - **枚举追加的穷尽性检查清单**：改 SearchType/HomeTabType 后 grep switch (this) / switch (item) / switch (searchType) 找穷尽 switch；live_search/member_search 的 searchType 是独立枚举，不受影响。
 - **HomeTabType.values 自动接线**：home/controller.dart 默认 tabs = values → 新枚举值自动出现；style_settings defaultBars 同。hk_bangumi 插在 bangumi 后使 cinema index 5→6，与 A 一致即可（不迁移 tabBarSort）。
 - **info 级 lint 容忍**：hk_bangumi 触发 constant_identifier_names（info），A 同文件同 lint，不阻塞 gate；baseline 只按 error/warning 计数。
@@ -129,3 +130,13 @@
 - **widget 测试在本仓库无法编译**：lib/common/widgets/flutter/text_field/editable_text.dart:5559（ExtendSelectionByPageIntent not found）是基线 error，任何间接 import material 的测试（含无关的 fractionally_sized_box_test）都编译失败 → 环境性限制，RED 验证只能以 analyze 级 0 error 为准。
 - **source-contract 测试是可行的运行验证**：video_summary_routing_test（dart:io File 读源 + flutter_test）2/2 PASS；test/http/ai_summary_test.dart 38/39 PASS，唯一失败 model_result.dart 期望 List<Subtitle>? subtitle 是既有契约 bug（模型两仓库 SAME 且无该字段，A 同样失败）。
 - **analyze 计数**：159（T12/T17 后基线）→ 146（−13 = 12×messageForResult + 1×hasContent），与 T17 notepad 的基线推导一致。
+
+## [2026-08-01] Task: T14（checkBlockReason 5 策略 + BlockedReplyBanner）
+- **B 的 reply_item_grpc 是 StatelessWidget，A 是 StatefulWidget**：banner 折叠需要 ``_expanded`` 状态，必须整类转换（全部字段加 ``widget.`` 前缀 + 静态成员加 ``ReplyItemGrpc.`` 前缀）。机械但必须谨慎；T15/T16 也在同文件，转换后 ``_ReplyItemGrpcState`` 是后续宿主。
+- **测试契约优先于 A 实现**：B/A 相同的 ``blocked_reply_banner_test.dart`` 要求 ``BlockedReplyBanner(onExpand:)`` 无 replyItem 可构造，且 ``find.text('此评论已被屏蔽。')`` 精确匹配——A 恒渲染 ``'…（$briefReason）。'`` 且 replyItem 必填，A 自身也过不了该测试。适配：replyItem 可选，briefReason 默认 ``'被屏蔽'`` 时渲染无括号文案。
+- **``checkBlockReason`` 不写 ``_blockedReasons``**：只有 ``mainList``/``detailList``/``dialogList``（banner 模式）和 ``blockReply`` 落库。``getBriefBlockReason``/``isClientBlocked`` 读的是内部 map——harness 里直接调 ``checkBlockReason`` 后断言 ``isClientBlocked`` 是错的（首次 harness 3 个假失败即此）。
+- **blocked_reply_filter_test 的 ``_applyBannerMode``/``_applyRemoveMode`` 是测试内复刻**，断言 marked id 集合，不调用 ``isClientBlocked``——真实 mainList 的落库行为由 mainList 直接测试（canned response 桩）验证。
+- **pure-Dart harness 复用配方（T6/T9/T13 升级版）**：pubspec ``name: PiliPlus`` + fixnum 1.1.1/protobuf **6.0.0**/hive_ce 2.19.3（**必须钉 protobuf 6.0.0**，生成 pb 引用私有成员 ``$_clearField``/``ProtobufEnum.$_initByValueList``，新版 3.x 无）；复制真实 ``lib/grpc/reply.dart`` + 全部 ``lib/grpc/bilibili/**``（99 文件自包含）；stub GrpcReq/GrpcUrl/Constants/LoadingState/GlobalData/Pref/GStorage/SettingBoxKey。GrpcReq stub 用 ``Map<String, List<GeneratedMessage>>`` FIFO 队列即可驱动真实 ``mainList`` 递归 auto-page。
+- **PowerShell 陷阱**：``print('RESULT: $(_passed)...')`` 的 ``$(...)`` 在双引号 here-string 里被求值，必须用单引号 here-string 写含 ``$()`` 的文本；``SettingBoxKey`` 无 blackMids（在 ``LocalCacheKey``）。
+- **analyze 计数**：146 → **116**（−30），三测试文件清零（block_reason 23/blocked_filter 6/banner 3），改动文件 0 error 0 warning，总 warning 无新增。
+- **``flutter test`` 会改 pubspec.lock（pub 镜像 URL 重写 pub.flutter-io.cn→pub.dev）**——验证后需 ``git checkout -- pubspec.lock`` 恢复，保持 diff 干净。
