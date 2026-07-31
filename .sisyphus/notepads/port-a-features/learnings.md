@@ -203,3 +203,12 @@ equired String apiUrl 不破坏其他调用点。
 - **info 级 lint 容忍**：A verbatim 的 _checkSteinResume 有 curly_braces_in_flow_control_structures（controller.dart:1194，A 同 1180），info 级不 gate，--no-fatal-warnings 通过。
 - **analyze 31 保持**：4 模型 + controller 0 error 0 warning；test/ 无 stein 引用（0 RED 负担）。
 - **并行任务干扰**：git status 含 T20-T23 文件改动（image_block/report/live/api 等），本任务只动 5 个文件，diff 需按文件隔离查看。
+
+## [2026-08-01] Task: T19（Stein 互动视频播放器 UI）
+- **B 已残留部分 stein UI**：playerListener onCompleted 的 stein 检查（`steinEdgeInfo?.edges?.questions?.firstOrNull?.choices?.isNotEmpty` → showSteinEdgeInfo=true）和 videoPlayer（竖屏）的 stein 选项 Obx 在 B 原本就在（`lib/pages/video/view.dart`，与 A 同款且无 recordCurrentSteinNode）。T19 真正缺的是：枚举值 + PLVideoPlayer 的 showStein/interactiveChild 参数 + 进度恢复弹框/回溯面板 + 横屏/通用播放器的 interactiveChild 选项条（含 recordCurrentSteinNode）。
+- **A 的 `.stein` 不在默认底部控制列表**：`buildBottomControl` 的 switch case（`BottomControlType.stein => ComBtn(...)`）存在，但 `userSpecifyItemRight` 默认列表**不含** `.stein`（A 自身如此）；`isStein` 局部变量在 A view.dart 也是死代码（401-403 计算后从未使用）。stein 主入口是 interactiveChild 的「进度回溯」TextButton（`steinHistory.length > 1` 时显示）。照 A 保持，不把 .stein 挂进默认列表。
+- **HistoryNode 在 interaction.dart 非 story_list.dart**：`models_new/video/video_play_info/interaction.dart` 定义 HistoryNode（nodeId/title/cid），`story_list.dart` 定义 StoryList（nodeId/edgeId/title/cid/startPos/cover/isCurrent/cursor）——view 需要两个 import 才能过编译。
+- **`StoryList? targetNode = ... ?? storyList.last` 触发 unnecessary_null_comparison**：`?? storyList.last` 兜底使 RHS 非空，后续 `if (targetNode != null)` 恒真。A 同代码同 warning（A view.dart:257），A verbatim 保留。
+- **A verbatim 也会带 lint 噪音**：pages/video/view.dart 的 stein Container（仅 Decoration）触发 use_decorated_box（info，A view.dart:275 同款）——判断"是否引入新 lint"时先跑 A 对照，同款即接受。
+- **grep 到 274 行 diff 全是 view 接线**：pl_player 只 +19 行（构造器 2 参数 + 字段 2 + switch case 13 + interactiveChild 2），真正主体在 pages/video/view.dart（弹框 + 面板 + 选项条）。controller 零改动（T18 已交付 VideoDetailController 侧全部字段，PlPlayerController 无 stein，A 同）。
+- **analyze 31 保持**：改动 3 文件 0 error；新增 1 warning + 1 info 均为 A verbatim（对照 A 分析确认）。T25 与 T19 同文件（pl_player view），改动点不重叠（T19: 构造器/switch/interactiveChild；T25: 快捷操作），串行即可。

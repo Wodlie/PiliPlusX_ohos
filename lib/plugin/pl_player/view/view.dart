@@ -100,7 +100,9 @@ class PLVideoPlayer extends StatefulWidget {
     this.bottomControl,
     this.danmuWidget,
     this.showEpisodes,
+    this.showStein,
     this.showViewPoints,
+    this.interactiveChild,
     this.fill = Colors.black,
     this.alignment = Alignment.center,
     super.key,
@@ -124,6 +126,8 @@ class PLVideoPlayer extends StatefulWidget {
   ])?
   showEpisodes;
   final VoidCallback? showViewPoints;
+  final VoidCallback? showStein;
+  final Widget? interactiveChild;
   final Color fill;
   final Alignment alignment;
 
@@ -597,6 +601,19 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           }
           return const SizedBox.shrink();
         },
+      ),
+
+      /// 互动视频进度回溯
+      BottomControlType.stein => ComBtn(
+        width: widgetWidth,
+        height: 30,
+        tooltip: '进度回溯',
+        icon: const Icon(
+          Icons.history_rounded,
+          size: 22,
+          color: Colors.white,
+        ),
+        onTap: widget.showStein,
       ),
 
       /// 选集
@@ -1680,6 +1697,8 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             ),
           ),
         ),
+
+        if (widget.interactiveChild != null) widget.interactiveChild!,
 
         // 头部、底部控制条
         Positioned.fill(
