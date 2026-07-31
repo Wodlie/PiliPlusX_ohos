@@ -4,9 +4,9 @@ import 'package:PiliPlus/grpc/bilibili/im/type.pb.dart';
 import 'package:PiliPlus/grpc/grpc_req.dart';
 import 'package:PiliPlus/grpc/url.dart';
 import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/utils/accounts/grpc_headers.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:protobuf/protobuf.dart' show PbMap;
-import 'package:uuid/v4.dart';
 
 abstract final class ImGrpc {
   static Future<LoadingState<RspSendMsg>> sendMsg({
@@ -28,7 +28,7 @@ abstract final class ImGrpc {
           msgStatus: 0,
           newFaceVersion: 1,
         ),
-        devId: const UuidV4().generate(),
+        devId: GrpcHeaders.currentImDeviceId(),
       ),
       RspSendMsg.fromBuffer,
     );
@@ -55,7 +55,7 @@ abstract final class ImGrpc {
         endSeqno: endSeqno,
         beginSeqno: beginSeqno,
         size: 20,
-        devId: '1',
+        devId: GrpcHeaders.currentImDeviceId(),
       ),
       RspSessionMsg.fromBuffer,
     );

@@ -73,3 +73,11 @@
 - **现有 2 条 pre-existing warning**（storage_pref→login_utils、block_filter_settings→storage_pref 的 unused_import）非 T8 引入，文件未改不动。
 
 
+
+## [2026-07-31] Task: T9（GrpcHeaders 按账号快照）
+- **fawkes 双形态冲突**：Dart 不允许 getter 与同名函数共存。A 是 `fawkes(String sessionId)` 函数，B 的 T7 hack 调无参 getter——解法：保留无参 getter（`_buildFawkes(generateSessionId())`），newHeaders 走私有 `_buildFawkes(derived.sessionId)`。任务约束"不改 delete()"成立（getter 返回新 map 时索引赋值退化为无副作用，但编译通过）。
+- **grpcHeaders 从 `late final`/`final` 改 getter**：account_mgr.dart:66 `options.headers.addAll(account.grpcHeaders)` 每请求调用 getter → 天然按账号快照；改 getter 不破坏 dio_http2_adapter 传输，grpc_req/init.dart 零改动。
+- **`_buvid => LoginUtils.buvid` 回退等价性**：B 的 `LoginUtils.buvid` 是 `static final = Pref.buvid`（首次访问即冻结），而 `Pref.buvid` 委托 getter `guestBuvid`（实时）。按 A 用 `Pref.guestBuvid` 不仅语义等价且避免冻结旧值——比字面保留 LoginUtils.buvid 更正确。
+- **纯 Dart harness 命名技巧**：临时 harness 的 pubspec `name` 必须与源码包名一致（`name: PiliPlus`），否则 `package:PiliPlus/...` 全解析失败。T6 的"import 重写"模式在复制真实文件到同路径时可省略——stub 放在原路径即可。
+- **metadata/*.pb.dart 自包含**：只 import protobuf/fixnum + 自身 pbenum，无 part/pbjson 依赖，可独立复制进 harness。grpc_identity_test 4 个剩余 error 全是 T17 的 `ImGrpc.buildSendMsgRequest`/`buildSyncFetchSessionMsgsRequest`（T8 证据误标 T9，task brief 明确 T17）。
+- **harness 断言即测试规格**：grpc_identity_test 中所有非 ImGrpc 断言（user-agent/authorization/buvid/mid/aurora-eid/device 字段/fp/guestId/metadata）已用 harness 56/56 PASS 覆盖，T17 落地后测试应整体转绿。

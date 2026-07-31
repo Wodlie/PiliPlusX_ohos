@@ -89,9 +89,8 @@ class LoginAccount extends Account {
   };
 
   @override
-  late final Map<String, String> grpcHeaders = GrpcHeaders.newHeaders(
-    accessKey,
-  );
+  Map<String, String> get grpcHeaders =>
+      GrpcHeaders.newHeaders(accessKey, buvid, deviceProfile, mid);
 
   @override
   late final String csrf =
@@ -287,7 +286,7 @@ class AnonymousAccount extends Account {
   final Map<String, String> headers = Constants.baseHeaders;
 
   @override
-  final Map<String, String> grpcHeaders = GrpcHeaders.newHeaders();
+  Map<String, String> get grpcHeaders => GrpcHeaders.newHeaders(null, buvid);
 
   @override
   bool activated = false;

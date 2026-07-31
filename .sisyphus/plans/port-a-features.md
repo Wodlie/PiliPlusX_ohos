@@ -601,7 +601,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/utils/accounts.dart`, `lib/utils/accounts/account_manager/account_mgr.dart`, `lib/utils/accounts/account.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 8. RequestIdentityAdapter + 身份解析接入
+- [x] 8. RequestIdentityAdapter + 身份解析接入
 
   **What to do**:
   - 按需重写 A 的 `lib/utils/accounts/request_identity_adapter.dart`（ONLY_A，A 独有）到 B（新建文件）：`RequestIdentityAdapter` 身份装饰器
