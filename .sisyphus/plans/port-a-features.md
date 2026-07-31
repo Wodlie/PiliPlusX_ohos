@@ -666,7 +666,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
 
 ### Batch 1 Wave 1.2 — Tasks 9-11 并行
 
-- [ ] 9. gRPC 头按账号快照 + wbi 风控字段
+- [x] 9. gRPC 头按账号快照 + wbi 风控字段
 
   **What to do**:
   - 按需重写 `lib/utils/accounts/grpc_headers.dart`：按账号快照解析身份（buvid/deviceProfile/mid/auroraEid）、`Device` proto 填真实 brand/model/osver 与 fpLocal/fpRemote/guestId、带 `x-bili-mid`/`x-bili-restriction-bin`/`x-bili-ticket`（参照 A；B 全静态占位）
@@ -728,7 +728,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/utils/accounts/grpc_headers.dart`, `lib/grpc/grpc_req.dart`, `lib/grpc/im.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 10. BUVID 激活重试 + 登出清理 + 昵称缓存
+- [x] 10. BUVID 激活重试 + 登出清理 + 昵称缓存
 
   **What to do**:
   - 按需重写 `lib/http/init.dart` 的 `buvidActive`：成功后才置 `activated=true`、失败保持可重试（参照 A 语义；保留 B 的 `Utils.random` 生成方式与 OHOS 注释）

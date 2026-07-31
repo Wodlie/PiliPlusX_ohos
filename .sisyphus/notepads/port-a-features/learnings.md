@@ -81,3 +81,13 @@
 - **纯 Dart harness 命名技巧**：临时 harness 的 pubspec `name` 必须与源码包名一致（`name: PiliPlus`），否则 `package:PiliPlus/...` 全解析失败。T6 的"import 重写"模式在复制真实文件到同路径时可省略——stub 放在原路径即可。
 - **metadata/*.pb.dart 自包含**：只 import protobuf/fixnum + 自身 pbenum，无 part/pbjson 依赖，可独立复制进 harness。grpc_identity_test 4 个剩余 error 全是 T17 的 `ImGrpc.buildSendMsgRequest`/`buildSyncFetchSessionMsgsRequest`（T8 证据误标 T9，task brief 明确 T17）。
 - **harness 断言即测试规格**：grpc_identity_test 中所有非 ImGrpc 断言（user-agent/authorization/buvid/mid/aurora-eid/device 字段/fp/guestId/metadata）已用 harness 56/56 PASS 覆盖，T17 落地后测试应整体转绿。
+
+
+## [2026-07-31] Task: T10（BUVID 激活重试 + setCookie 对齐 + 昵称缓存）
+- **generateSecureRandomBytes 在 B 全库 0 命中**（A 的 buvidActive 用 Utils.generateSecureRandomBytes(36)）——T8 的 _secureRandom 系列并不存在于 B 的 Utils；buvidActive 保留 B 的 Utils.random 生成（32+4 随机字节 + PNG IEND 魔数）。
+- **B 的 setCookie sync 是旧上游继承，非 OHOS 选择**：git log -- lib/http/init.dart 只显示上游同步（sync: 跟进至 2.1.0）+ 上游 tweaks/fix，无 OHOS 改 sync 提交 → 安全对齐 A（async + wait Accounts.refresh()）。唯一调用方 main.dart:162 不 await（A 同），且 analysis_options 无 unawaited_futures/discarded_futures lint，无新 warning。
+- **B 的 Accounts.refresh() T7 已是 Future<void>**，原 sync setCookie 里 Accounts.refresh(); 是 fire-and-forget（setWebCookie 可能与 refresh 竞态），await 后修复排序。
+- **重试语义必须配 dio.post 直调**：Request().post() 内部 catch DioException 返回合成 Response（statusCode -1），非 2xx/网络错误不会抛出 → catch 永不触发 → activated 照样置 true，重试形同虚设。A 的注释明确这一点，直接移植。
+- **mine/controller.dart 的 queryUserInfo 也写 setAccountUname**（A mine controller:107 对齐）——写入方共 2 处：login_utils.onLoginMain + mine.queryUserInfo；读取方 storage_pref.getAccountDisplayName。
+- **analyze 基线 181 errors 保持**（B T9 后基线）；37 warnings 全 pre-existing（vendored 引擎 unreachable_switch/undefined_hidden_name、孤儿 part unused_import、test/ RED unused_import、buvid_lifecycle_test:11 已知 unused import）。
+- **T7 的 delete() 确认无缺口**：Future.wait([cookieJar.deleteAll(), Pref.deleteGuestBuvid()]).whenComplete(setBuvid3) + fawkes hack，本任务未动 account.dart。

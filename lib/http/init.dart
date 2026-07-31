@@ -36,10 +36,10 @@ class Request {
   factory Request() => _instance;
 
   /// 设置cookie
-  static void setCookie() {
+  static Future<void> setCookie() async {
     accountManager = AccountManager();
     dio.interceptors.add(accountManager);
-    Accounts.refresh();
+    await Accounts.refresh();
     LoginUtils.setWebCookie();
 
     if (Accounts.main.isLogin) {
@@ -60,9 +60,7 @@ class Request {
   }
 
   static Future<void> buvidActive(Account account) async {
-    // 这样线程不安全, 但仍按预期进行
     if (account.activated) return;
-    account.activated = true;
     try {
       // final html = await Request().get(Api.dynamicSpmPrefix,
       //     options: Options(extra: {'account': account}));
@@ -89,7 +87,10 @@ class Request {
         },
       });
 
-      await Request().post(
+      // 直接走 dio.post：让 DioException（非 2xx、网络错误）在 try 外抛出，
+      // 保持 activated=false；Request().post() 会把 DioException 包装成合成
+      // Response，导致常见错误下 catch 永不触发。
+      await dio.post(
         Api.activateBuvidApi,
         data: {'payload': jsonData},
         options: Options(
@@ -97,7 +98,11 @@ class Request {
           contentType: Headers.jsonContentType,
         ),
       );
-    } catch (_) {}
+      // 成功后才置 activated=true，失败保持可重试
+      account.activated = true;
+    } catch (_) {
+      // 失败保持 activated=false，下次 buvidActive 调用仍可重试
+    }
   }
 
   static Dio _cloneHttp11Dio() {
