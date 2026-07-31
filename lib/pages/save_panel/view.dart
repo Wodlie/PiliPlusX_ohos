@@ -373,6 +373,7 @@ class _SavePanelState extends State<SavePanel> {
                             replyLevel: 0,
                             needDivider: false,
                             upMid: widget.upMid,
+                            forceShowOriginalContent: true,
                           ),
                         ),
                         DynamicItemModel dyn => IgnorePointer(

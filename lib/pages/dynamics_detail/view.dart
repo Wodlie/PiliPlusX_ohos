@@ -507,7 +507,7 @@ class _DynamicDetailPageState
     } else {
       child = _buildHorizontal(padding);
     }
-    return fabAnimWrapper(child);
+    return fabAnimWrapper(child: child);
   }
 
   Widget _buildBottom() {

@@ -35,6 +35,25 @@ class DynamicsController
   @override
   final AccountService accountService = Get.find<AccountService>();
 
+  bool _isFabVisible = true;
+  AnimationController? _fabAnimationCtr;
+  Animation<Offset>? _fabAnimation;
+
+  Animation<Offset> get fabAnimation {
+    if (_fabAnimation != null) return _fabAnimation!;
+    _fabAnimationCtr = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..forward();
+    _fabAnimation = _fabAnimationCtr!.drive(
+      Tween<Offset>(
+        begin: const Offset(0.0, 2.0),
+        end: Offset.zero,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+    );
+    return _fabAnimation!;
+  }
+
   DynamicsTabController? get controller {
     try {
       return Get.find<DynamicsTabController>(
@@ -100,6 +119,20 @@ class DynamicsController
   Future<void> onRefresh() {
     singleRefresh();
     return controller!.onRefresh();
+  }
+
+  void showFab() {
+    if (!_isFabVisible) {
+      _isFabVisible = true;
+      _fabAnimationCtr?.forward();
+    }
+  }
+
+  void hideFab() {
+    if (_isFabVisible) {
+      _isFabVisible = false;
+      _fabAnimationCtr?.reverse();
+    }
   }
 
   @override

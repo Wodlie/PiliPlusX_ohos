@@ -13,6 +13,7 @@ import 'package:PiliPlus/pages/login/geetest/geetest_webview_dialog.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -645,10 +646,14 @@ class LoginPageController extends GetxController
     }
     final colorScheme = ColorScheme.of(context);
     final selectAccount = List.of(Accounts.accountMode);
+    final useDisplayName = Pref.accountDisplayName;
     final options = {
       AnonymousAccount(): '0',
       ...Accounts.account.toMap().map(
-        (k, v) => MapEntry(v, k as String),
+        (k, v) => MapEntry(
+          v,
+          useDisplayName ? Pref.getAccountDisplayName(v.mid) : k as String,
+        ),
       ),
     };
     bool quickSelect = selectAccount.every((e) => e == selectAccount.first);

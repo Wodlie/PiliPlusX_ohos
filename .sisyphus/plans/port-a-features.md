@@ -1299,7 +1299,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/models_new/video/video_stein_edgeinfo/*.dart`, `lib/pages/video/controller.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 19. Stein 播放器 UI（回溯面板/BottomControlType.stein/showStein/interactiveChild）
+- [x] 19. Stein 播放器 UI（回溯面板/BottomControlType.stein/showStein/interactiveChild）
 
   **What to do**:
   - `lib/plugin/pl_player/models/bottom_control_type.dart`：加 `stein` 枚举值（参照 A；B 已删）
@@ -1582,7 +1582,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
 
 ### Batch 4 — 页面/杂项（依赖 Batch 1-3；6 任务并行）
 
-- [ ] 24. 动态/首页刷新 FAB + 剪贴板搜索
+- [x] 24. 动态/首页刷新 FAB + 剪贴板搜索
 
   **What to do**:
   - 动态页刷新 FAB：`lib/pages/dynamics/controller.dart` + `view.dart`（`Pref.showDynamicsRefreshFab` + 滚动方向显隐动画，参照 A `fab_mixin`）
@@ -1642,7 +1642,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/pages/dynamics/controller.dart`, `lib/pages/dynamics/view.dart`, `lib/pages/common/fab_mixin.dart`, `lib/pages/home/controller.dart`, `lib/pages/home/view.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 25. 播放器快捷操作（长按倍速/比例、fastForBackwardDuration_、HDR 提示）
+- [x] 25. 播放器快捷操作（长按倍速/比例、fastForBackwardDuration_、HDR 提示）
 
   **What to do**:
   - 长按切换倍速（1.0x↔2.0x）与画面比例（contain↔cover）：`lib/plugin/pl_player/view/view.dart` speed/qa 控件的 GestureDetector（参照 A；B 已删 onLongPress/onSecondaryTap）
@@ -1695,7 +1695,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/plugin/pl_player/view/view.dart`, `lib/plugin/pl_player/controller.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 26. 下载按 UP 过滤 + 保存评论图原文
+- [x] 26. 下载按 UP 过滤 + 保存评论图原文
 
   **What to do**:
   - 下载搜索按 UP 主名过滤：`lib/pages/download/search/controller.dart`（参照 A；B 无 UP 过滤）
@@ -1742,7 +1742,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/pages/download/search/controller.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 27. selectable_region_ext + insertOrAdd + viewPugv(progress:)（方案已按 Batch 0 更新）
+- [x] 27. selectable_region_ext + insertOrAdd + viewPugv(progress:)（方案已按 Batch 0 更新）
 
   **What to do**:
   - **已更新（Batch 0 决策）**：不移植 A 原版 `selectable_region_ext.dart`——该扩展用 `(this as dynamic).selectable/.selectionDelegate` 访问私有字段，两 SDK 均无公共 getter，运行时必 NoSuchMethodError（A 自身也是坏的，B 维护者已在 d1916d920 删除）。改为 **B 原生 SelectableText 菜单**（EditableTextState.textEditingValue 公共可取选区）加「打开」按钮
@@ -1806,7 +1806,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/utils/extension/selectable_region_ext.dart`, `lib/utils/extension/iterable_ext.dart`, `lib/utils/page_utils.dart`（及相关页面）
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 28. 设置项恢复（AI 组/评论 AI 翻译/申诉理由/图片路径/快速分享目标/HK URL）
+- [x] 28. 设置项恢复（AI 组/评论 AI 翻译/申诉理由/图片路径/快速分享目标/HK URL）
 
   **What to do**:
   - 逐项恢复设置 UI 与消费点（参照 A `lib/pages/setting/`）：
@@ -1864,7 +1864,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/pages/setting/*`（相关文件）
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 29. 视频换源跳转 videoPush + 隐藏状态栏 + 账号昵称 + 无痕空降
+- [x] 29. 视频换源跳转 videoPush + 隐藏状态栏 + 账号昵称 + 无痕空降
 
   **What to do**:
   - 视频换源：恢复 `lib/http/video.dart` 中 -404 时的 `PiliScheme.videoPush` 换源跳转弹窗（参照 A；B 已删）

@@ -204,6 +204,13 @@ equired String apiUrl 不破坏其他调用点。
 - **analyze 31 保持**：4 模型 + controller 0 error 0 warning；test/ 无 stein 引用（0 RED 负担）。
 - **并行任务干扰**：git status 含 T20-T23 文件改动（image_block/report/live/api 等），本任务只动 5 个文件，diff 需按文件隔离查看。
 
+## [2026-08-01] Task: T26（下载按 UP 主名过滤 + 保存评论图强制原文）
+- **UP 过滤只需加 ownerName 到 where 子句**：B 的 `BiliDownloadEntryInfo.ownerName`（String?）早在模型（bili_download_entry_info.dart:38），`customGetData()` 照 A 补 `(e.ownerName?.toLowerCase().contains(text) ?? false)` 即可，无需补模型或 import。
+- **forceShowOriginalContent 消费点 = save_panel/view.dart 的 ReplyItemGrpc**：T15 只在 reply_item_grpc.dart 定义了参数（默认 false，`!widget.forceShowOriginalContent` 分支控制折叠/原图，reply_item_grpc.dart:178,207），A 的消费点就在 SavePanel 的保存渲染里（A save_panel/view.dart:378）。接线 = 在该处传 `forceShowOriginalContent: true`，一行搞定。
+- **保存图「强制原文」的语义**：SavePanel 用 IgnorePointer + ReplyItemGrpc 渲染静态保存图，`true` 使图片不被折叠为小图/不触发布局限制，走原图分支——非保存场景（真实回复列表）保持默认 false，不回归。
+- **analyze 31 保持**：改动 2 文件（download/search/controller + save_panel/view）0 error 0 warning，总 error 数 31 = T16 基线。改动点与其他并行任务（T24/T25/T27-29）不重叠。
+- **约束满足**：下载多选分享（onRemove/多选逻辑）未触碰；download_manager/download_service 未改；无桌面分支；无 *.g.dart/*.pb*.dart 编辑。
+
 ## [2026-08-01] Task: T19（Stein 互动视频播放器 UI）
 - **B 已残留部分 stein UI**：playerListener onCompleted 的 stein 检查（`steinEdgeInfo?.edges?.questions?.firstOrNull?.choices?.isNotEmpty` → showSteinEdgeInfo=true）和 videoPlayer（竖屏）的 stein 选项 Obx 在 B 原本就在（`lib/pages/video/view.dart`，与 A 同款且无 recordCurrentSteinNode）。T19 真正缺的是：枚举值 + PLVideoPlayer 的 showStein/interactiveChild 参数 + 进度恢复弹框/回溯面板 + 横屏/通用播放器的 interactiveChild 选项条（含 recordCurrentSteinNode）。
 - **A 的 `.stein` 不在默认底部控制列表**：`buildBottomControl` 的 switch case（`BottomControlType.stein => ComBtn(...)`）存在，但 `userSpecifyItemRight` 默认列表**不含** `.stein`（A 自身如此）；`isStein` 局部变量在 A view.dart 也是死代码（401-403 计算后从未使用）。stein 主入口是 interactiveChild 的「进度回溯」TextButton（`steinHistory.length > 1` 时显示）。照 A 保持，不把 .stein 挂进默认列表。
@@ -212,3 +219,47 @@ equired String apiUrl 不破坏其他调用点。
 - **A verbatim 也会带 lint 噪音**：pages/video/view.dart 的 stein Container（仅 Decoration）触发 use_decorated_box（info，A view.dart:275 同款）——判断"是否引入新 lint"时先跑 A 对照，同款即接受。
 - **grep 到 274 行 diff 全是 view 接线**：pl_player 只 +19 行（构造器 2 参数 + 字段 2 + switch case 13 + interactiveChild 2），真正主体在 pages/video/view.dart（弹框 + 面板 + 选项条）。controller 零改动（T18 已交付 VideoDetailController 侧全部字段，PlPlayerController 无 stein，A 同）。
 - **analyze 31 保持**：改动 3 文件 0 error；新增 1 warning + 1 info 均为 A verbatim（对照 A 分析确认）。T25 与 T19 同文件（pl_player view），改动点不重叠（T19: 构造器/switch/interactiveChild；T25: 快捷操作），串行即可。
+
+## [2026-08-01] Task: T25（播放器快捷操作：长按倍速/比例 + fastForBackwardDuration_ + HDR 弹窗）
+- **B 的 storage_pref/storage_key 双键早已存在**：Pref.fastForBackwardDuration（forward，storage_pref.dart:658）与 Pref.fastForBackwardDuration_（backward，storage_pref.dart:661）及对应 SettingBoxKey 全在——T25 只需在 controller 补 late final fastForBackwardDuration_ = Duration(seconds: Pref.fastForBackwardDuration_);，view 的 BackwardSeekIndicator 改引用它；ForwardSeekIndicator 保持 astForBackwardDuration。
+- **B 的 controller 方法已齐**：setPlaybackSpeed（:1227）/	oggleVideoFit（:1403）B 原本就有——长按切换零新增方法，只做 UI 包裹。
+- **view.dart 缺 feed_back.dart import**：B 的 eedBack()（utils/feed_back.dart，与 A 逐字节同构）存在但 view.dart 未 import，补 import 'package:PiliPlus/utils/feed_back.dart';（插在 android/bindings.g.dart 前，对齐 A 顺序）。
+- **fit 分支 B 用局部 inal fit 捕获**（A 在回调内实时读 ideoFit.value）：因 Obx 随 videoFit 变化同步重建，闭包捕获的 fit 恒为最新，功能等价；保留 B 的局部变量风格更省 diff。
+- **qa HDR 弹窗插入点**：inal newQa = VideoQuality.fromCode(quality); 之后、ideoDetailController..cacheVideoQa... 之前；VideoQuality.hdrVivid/dolbyVision/hdr（video_quality.dart:2,4,5）B 全在。弹窗仅提示不阻断（OHOS HDR 显示管线未知，UI 层安全）。
+- **analyze 计数漂移注意**：T25 落地后 analyze 为 **27 errors**（基线 31 少了 4），因并行任务（T24/T26 等）修掉了部分 test RED——同文件并行写入（controller.dart 出现 hideStatusBar 段）时 diff 需按文件隔离查看，只认自己改的段落。
+- **RED 检查**：test/ 仅断言 astForBackwardDuration/astForBackwardDuration_ 的 SettingBoxKey 存在（storage_key_test:17、storage_pref_test:145-147，键早已存在），无待转绿测试。
+
+## [2026-08-01] Task: T29（videoPush 换源 + hideStatusBar + 无痕空降）
+- **B 的 app_scheme.dart 已有完整 videoPush**（line 881，签名与 A 完全一致含 showDialog/off/progress/part）——本任务只需在 video.dart 补弹窗调用，不用动 app_scheme。任务标题里的「检查 videoPush 是否存在」答案：存在。
+- **hideStatusBar 消费点在 pl_player/controller.dart 的 triggerFullScreen 退出分支**（不在 view.dart）。B 的 fullscreen.dart 已带 `StatusBar.i` OHOS 适配（hideSystemBar 置 `StatusBar.i.hidden = true`），移植 A 的 `if (!Pref.hideStatusBar) showSystemBar() else hideSystemBar()` 时直接用 B 现有 hideSystemBar/showSystemBar，不复制 A 的纯 SystemChrome 写法。
+- **无痕空降 = SponsorBlock 无痕抑制**，T23 已完成消费（block_mixin.dart:68 querySponsorBlock + :256 viewedVideoSponsorTime 双点 `Pref.suppressSponsorBlockIncognito && MineController.anonymity.value`）；T29 只补 UI 开关「无痕模式不发送查询」（extra_settings.dart 的 SwitchModel）。B 的 extra_settings 原本有「空降助手」SplitModel 但缺该开关。
+- **video.dart 是纯 http 文件不 import material**：补弹窗要新增 3 个 import（flutter/material、flutter_smart_dialog、utils/app_scheme）——A 因走 material 间接 re-export 能直接用 SmartDialog，B 必须显式 import。
+- **extra_settings.dart 是并行任务高频冲突点**（T28 也在加设置项）：编辑前先读当前文件确认行号已漂移，用 edit 按上下文精确匹配即可，analyze 验证兜底。
+- **analyze 27 vs 基线 31**：并行任务修掉 4 个 test RED 导致总错误数下降，本任务 3 文件 0 error 0 warning，验收以「不新增」判定。
+
+## [2026-08-01] Task: T27（selectable_region 替代 + insertOrAdd + viewPugv(progress:)）
+- **selectable_region_ext_test.dart 删除决策**：该测试引用 `SelectableRegionStateExt`（hideAndClear/selectedText/isUncollapsed）——A 原版 API 的核心字段访问（(this as dynamic).selectable）T4 已实证在 A 自身运行时即 NoSuchMethodError，B 不移植；替代实现是 B 原生 SelectableText 菜单内联接线（非独立可单测单元），保留旧测试只会保留对不存在 API 的 4 个编译错误 → 删除。analyze 31 → 23（−8 = extension_test 4 转绿 + selectable_region_ext_test 4 移除）。
+- **「打开」按钮的公共 API 配方**：`state.textEditingValue.selection.textInside(state.textEditingValue.text).trim()` + 守卫 `!selection.isCollapsed && selected.isNotEmpty`——全公共 API，无 (this as dynamic) 越权，2 处消费点（content_panel._contextMenuBuilder / reply_item_grpc._filterMenuBuilder）同一配方。superchat（SelectionArea）无公共选区文本，保持原生不实现（与 A 实际损坏行为一致）。
+- **viewPugv(progress:) 双透传点**：viewPugv 签名加 `int? progress` + toVideoPage 调用的 `progress:` 参数 + viewPgcFromUri 的 pugv 分支补传 `progress: progress`（A 的 viewPgcFromUri 两分支都透传，B 原本只 pgc 分支透传）。
+- **extension_test.dart 头部注释会撒谎**：T16 之前它写着 "See test/utils/selectable_region_ext_test.dart for standalone tests"——T27 删除该文件后必须同步更新注释，否则注释指向不存在的文件。
+- **`flutter test test/utils/extension_test.dart` 24/24 PASS**：本文件只 import flutter_test + 轻依赖（extended_nested_scroll_view/fixnum/pb show Dimension），不拉全依赖图，本地 3.44.4 可跑——insertOrAdd 4 断言真绿。跑完仍需 `git checkout -- pubspec.lock`（pub 镜像 URL 重写，T14 gotcha 复现）。
+
+## [2026-08-01] Task: T28（恢复设置项 + 账号选择器昵称）
+- **B 的 extra_settings 已含 AI 总结组 + 港澳台代理**（T13/T11 已补）：启用AI总结/后台总结/服务选择/Base URL/API Key/文本模型/多模态模型/超时 + apiHKUrl 全在；本任务只补缺失 5 项（accountDisplayName/saveImgPath/defaultAppealReason/enableQuickShare/enableCommentTranslate）+ 登出/切换昵称。
+- **saveImgPath 在 A/B 都是"展示型偏好"**：grep 全库 `Pref.saveImgPath` 两仓均零消费（图片保存走 saver_gallery `_albumPath` 硬编码 `Pictures/${Constants.appName}`）；getSaveImgPathModel 只是写键。移植纯 UI，无接线负担。
+- **saveImgPath 门控必须加 OS.isHarmony**：A 是 `if (Platform.isAndroid)`，OHOS 上 Platform.isAndroid=false，不加鸿蒙门控则设置项不可见——用 B 既有的 `Platform.isAndroid || OS.isHarmony` 模式（extra_settings 已 import os_type）。
+- **账号昵称消费点共 3 处**：switchAccountDialog（login/controller.dart:715-721 options map）+ _logoutDialog 两处（setting/view.dart MultiSelect values + 确认文案），B 全缺；三处都要 `Pref.accountDisplayName` + `Pref.getAccountDisplayName(mid)`（storage_pref.dart:101-106 读取方 T10 已建，写入方 login_utils.onLoginMain/mine.controller 已就位）。
+- **login/controller.dart 与 setting/view.dart 原本零 Pref 引用**：补昵称必须同步补 `import utils/storage_pref.dart`，否则 undefined_name。补前先 grep 该文件是否已 import storage_pref。
+- **getSaveImgPathModel 依赖 Constants.appName**：B 的 model.dart 原本不 import common/constants.dart（09_report §6 记录），加函数必须同步补 import。
+- **RED 检查方法**：storage_pref_test 对 5 个新键只断言 `SettingBoxKey.*` 存在（storage_key.dart 已定义），无行为断言 → 零转绿负担。
+- **analyze 27 → 26**：改动 4 文件 0 error 0 warning；并行任务（T24-T27）持续写入使总计数抖动（26/27），验收按"改动文件 0 error + 不增 warning"判定；extra_settings.dart:743 的 `unnecessary_lambdas` 是 A 同款 pre-existing info，非本任务引入。
+- **并行写同一文件风险**：git diff 里出现本任务之外的同文件改动（如 suppressSponsorBlockIncognito UI 由并行任务写入 extra_settings）——确认自己的 Edit 未被覆盖，diff 隔离按文件核对即可。
+
+## [2026-08-01] Task: T24（动态/首页刷新 FAB + 剪贴板搜索）
+- **B 的 fab_mixin.dart 缺 fabAnimWrapper/onNotification**：A 的 BaseFabMixin 封装 abAnimWrapper({required Widget child})（具名参数）+ onNotification；B 此前只在 common_dyn_page 本地定义位置参数 abAnimWrapper(Widget child)。改为 A 模式后必须同步 4 个消费点（article/dynamics_detail/match_info/music）从 abAnimWrapper(child) → abAnimWrapper(child: child)，否则 invalid override 编译错。
+- **ScrollDirection 不在 material 导出**：lutter/material.dart 不 re-export ScrollDirection（rendering 层），显式写 ScrollDirection.forward 需补 import 'package:flutter/rendering.dart'；A 用点简写 .forward（按 static type 解析，无需 import）才避开。B 用显式名时两个文件（fab_mixin/common_dyn_page）都要注意。而 UserScrollNotification 由 widgets 导出，material 可解析。
+- **axisDirection 是 AxisDirection 枚举**：
+otification.metrics.axisDirection == .down 是 AxisDirection.down，不是 ScrollDirection.down（我第一版写错触发 undefined_enum_constant）。
+- **动态页 FAB 用 GetSingleTickerProviderStateMixin（A 同款）**：A 的 dynamics controller 用单 Ticker mixin + TabController(1 ticker) + fab AnimationController(2nd ticker) → 调试模式会触发 GetSingleTickerProviderStateMixin 的 multiple-tickers assert（release 无）。忠实移植 A，home 则按任务约束升 GetTickerProviderStateMixin。潜在 A 继承问题，真机若 debug 崩可后续升级 dynamics 为多 Ticker。
+- **home FAB 升级 GetTickerProviderStateMixin 无冲突**：GetX 的多 Ticker mixin 是超集（Set 跟踪 + onClose 断言 active ticker），tabController + fab 双 AnimationController 安全；home controller dispose 需加 _fabAnimationCtr?.dispose()（A 同款），否则 onClose 断言。
+- **analyze 23（基线 31 不增）**：改动 7+4 文件 0 error 0 warning；23 = 6 vendored + 17 test RED，其中 8 个（android_helper×6 + platform_utils isHarmony×2）被并行任务清零。残余 2 info 非本任务引入（common_dyn_page rendering import 改动前即冗余；home cascade_invocations 为 A verbatim 同款）。

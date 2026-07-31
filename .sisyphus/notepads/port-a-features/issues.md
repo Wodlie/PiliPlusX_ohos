@@ -57,3 +57,7 @@
 - **flutter_test 本地编译阻塞**：本地 3.44.4 无法编译 B 的传递依赖图（vendored 3.32.4-ohos 补丁、font_awesome 10.9.0、git fork 平台成员）——任何 import lib 的测试本地都编不过。验证方案：纯 Dart harness（临时目录 + stub 依赖 + 真实复制核心文件）已验证可行（T6 31/31 PASS）。后续涉及测试的任务沿用此模式。
 - **analyze 基线更新**：276 → 236（T6 后）。孤儿 part 85 + test RED 是已知基线。
 
+## [2026-08-01] Task: T27 — selectable_region_ext_test 删除决策
+- **删除 `test/utils/selectable_region_ext_test.dart`**：它测试 `SelectableRegionStateExt`（A 原版 API），而 T4 已实证该 API 运行时 NoSuchMethodError（(this as dynamic) 访问私有字段），B 不移植。替代实现是 B 原生 SelectableText 菜单内联接线，非可单测单元 → 保留旧测试 = 保留对不存在 API 的 4 个编译错误。删除后 analyze 31 → 23。
+- 若未来要单测「打开」菜单行为：需把 2 处 menu builder 的选区提取逻辑抽成独立函数/扩展（EditableTextState 纯函数），再配轻依赖测试——本任务按 T4 结论内联实现，未抽象。
+

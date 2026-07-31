@@ -1,61 +1,67 @@
 # lib/ — Flutter/Dart Core
 
-**Overview:** Flutter Bilibili client. All UI, business logic, networking, and state management.
+**Overview:** Flutter Bilibili client. All UI, business logic, networking, and state management. ~1470 Dart files.
 
 ## STRUCTURE
 
 ```
 lib/
 ├── main.dart               # Flutter app entry (GetX MaterialApp)
-├── pages/                  # ~150 page directories (GetX routing)
-├── models_new/             # Active data models (~50 subdirs)
-├── models/                 # Legacy models (~8 subdirs)
-├── common/                 # Shared widgets, utils, skeleton
-├── http/ + grpc/           # REST + Bilibili gRPC APIs
-├── router/                 # GetX navigation
-├── services/               # Download, etc.
-├── plugin/                 # pl_player (video player)
-├── utils/                  # Accounts, extensions, helpers
+├── pages/                  # 115 page dirs (see pages/AGENTS.md)
+├── models_new/             # Active data models, 41 subdirs (see models_new/AGENTS.md)
+├── models/                 # Legacy models (~8 subdirs, frozen)
+├── common/                 # Shared widgets + constants (see common/AGENTS.md)
+├── http/ + grpc/           # REST (Dio) + Bilibili gRPC-over-HTTP
+├── router/                 # GetX navigation (app_pages.dart — only route table)
+├── services/               # Download, audio, account state
+├── plugin/pl_player/       # pl_player (video player engine, media_kit-based)
+├── utils/                  # Storage/Pref, accounts, theme, extensions
 ├── harmony_adapt/          # OHOS-specific adaptations
 ├── media_kit_adapt/        # media_kit adaptations
-└── tcp/                    # TCP networking
+├── tcp/                    # Live danmaku WebSocket client (LiveMessageStream)
+└── scripts/                # 17 upstream .patch files (not Dart)
 ```
 
 ## WHERE TO LOOK
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Add a page | `lib/pages/[page_name]/` | Create dir, implement GetView, add to router |
-| Add API model | `lib/models_new/[model]/` | JSON serializable, extends base model |
-| REST API client | `lib/http/` | Dio-based, may need OHOS adaptation |
-| gRPC API | `lib/grpc/bilibili/` | Generated code, **don't edit** |
-| State management | `lib/pages/` | GetX (GetxController, GetView, Obx) |
+| Add a page | `lib/pages/[page_name]/` | Create dir, StatefulWidget + controller, add to router |
+| Add API model | `lib/models_new/[model]/` | Hand-written JSON parsing (no codegen) |
+| REST API client | `lib/http/` | Dio-based, endpoint file per domain |
+| gRPC API | `lib/grpc/` | Hand-written wrappers; `bilibili/**` generated, **don't edit** |
+| State management | `lib/pages/` | GetX (GetxController, Get.put / Get.putOrFind) |
 | Video player | `lib/plugin/pl_player/` | Custom player wrapping media_kit |
 | Shared widget | `lib/common/widgets/` | Reusable across pages |
 | OHOS bridge | `lib/harmony_adapt/` | Platform-specific workarounds |
 
 ## CONVENTIONS
 
-- **GetX pattern**: Controller in page dir, View extends GetView<Controller>
+- **Page pattern**: `view.dart` = StatefulWidget whose State extends a shared base (`CommonPageState`/`CommonDynPageState`/`CommonSlidePageState`); `controller.dart` = `GetxController`. **No `GetView<T>` anywhere** (old docs said otherwise)
+- **Controller binding**: `Get.put(Controller())` for page-scoped (often with `tag:` for multi-instance, e.g. `heroTag` in video page); `Get.putOrFind(Controller.new)` for persistent/tab controllers; `Get.find<T>()` for cross-controller access. No GetX `Bindings` classes exist
 - **Page dir naming**: lowercase_with_underscores
-- **Model files**: one class per file, `fromJson`/`toJson` via json_serializable
-- **New models go to `models_new/`** — legacy `models/` is frozen
-- **Routes** defined in `lib/router/` via GetX routing
-- **gRPC** for Bilibili internal APIs; **REST** for proxy/web endpoints
-- **Dio** for HTTP (configured in `lib/http/` with interceptors)
-- **video_player** uses `media_kit` (cross-platform), adapted for OHOS
+- **Models**: hand-written `factory Xxx.fromJson(Map<String, dynamic>)` (arrow style); **no json_serializable/freezed/@JsonKey** in models_new; `fromJson`-only (no `toJson` except download + a few live models)
+- **New models go to `models_new/`** — legacy `models/` is frozen (only 3 files there use json_serializable `.g.dart`)
+- **Routes** defined in `lib/router/app_pages.dart` (~85 GetPage entries, camelCase names, no bindings)
+- **gRPC** for Bilibili internal APIs (framing via `GrpcReq`, POST to `app.bilibili.com`); **REST** for proxy/web endpoints
+- **Dio** for HTTP (configured in `lib/http/init.dart` with HTTP/2 adapter + AccountManager cookie interceptor)
+- **API pattern**: `Api` endpoint constants (`http/api.dart`) → `abstract final class XxxHttp` static methods → `Future<LoadingState<T>>` return
 
 ## ANTI-PATTERNS
 
 - **Don't** use `import 'package:PiliPlus/...'` with incorrect casing (CI uses `sed` to fix)
 - **Don't** add relative lib/ imports (enforced by linter)
-- **Don't** edit `*.g.dart` in `models/` or `models_new/` (regenerated by build_runner)
+- **Don't** edit `*.g.dart` in `models/` (only 3, regenerated by build_runner) — `models_new/` has none
+- **Don't** edit `lib/grpc/bilibili/**/*.pb*.dart` (protobuf-generated, lint-excluded)
 - **Don't** add new code to legacy `lib/models/` — use `lib/models_new/`
 - **Don't** bypass GetX routing for page navigation
+- **Don't** restore commented-out code in `lib/common/widgets/flutter/text_field/text_selection.dart:2921,3044` (OHOS engine 3.32.4-ohos unsupported)
+- **Don't** remove `@Deprecated` on `defaultDecode`/`secondDecode` (OHOS refs not migrated, docs/compatibility-issues.md A10)
 
 ## NOTES
 
-- Heavily uses git dependency overrides (~20+ packages forked for OHOS compatibility)
+- ~40 git dependency overrides (~20 in pubspec + ~20 dependency_overrides) — forks for OHOS compatibility
 - All .dart files use `package:` imports (not relative)
-- Pending OHOS adaptations tracked by `// TODO 鸿蒙待适配` comments
-- `lib/common/widgets/flutter/` contains embedded Flutter framework patches
+- 4 pending OHOS adaptations tracked by `// TODO 鸿蒙待适配` comments
+- `lib/common/widgets/flutter/` contains embedded Flutter framework patches (3.32.4-ohos adaptations marked `// ↓↓↓ 适配flutter 3.32.4-ohos-0.0.1`)
+- `lib/utils/android/bindings.g.dart` + `android_helper.dart` are hand-written OHOS stubs — keep API shape identical, guard all calls with `Platform.isAndroid`

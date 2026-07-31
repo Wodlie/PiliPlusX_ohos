@@ -334,21 +334,11 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
     child: const Icon(Icons.reply),
   );
 
-  Widget fabAnimWrapper(Widget child) {
-    return NotificationListener<UserScrollNotification>(
-      onNotification: (notification) {
-        if (notification.metrics.axisDirection == .down) {
-          switch (notification.direction) {
-            case .forward:
-              showFab();
-            case .reverse:
-              hideFab();
-            default:
-          }
-        }
-        return false;
-      },
-      child: child,
-    );
+  @override
+  bool onNotification(UserScrollNotification notification) {
+    if (notification.metrics.axisDirection == AxisDirection.down) {
+      return super.onNotification(notification);
+    }
+    return false;
   }
 }

@@ -51,6 +51,7 @@ import 'package:PiliPlus/plugin/pl_player/widgets/common_btn.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/forward_seek.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/mpv_convert_webp.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/play_pause_btn.dart';
+import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/cache_manager.dart';
 import 'package:PiliPlus/utils/cache_manager_ext.dart';
@@ -699,11 +700,32 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                   )
                   .toList();
             },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                fit.desc,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+            child: GestureDetector(
+              onLongPress: () {
+                feedBack();
+                if (fit == VideoFitType.contain) {
+                  plPlayerController.toggleVideoFit(VideoFitType.cover);
+                  SmartDialog.showToast(VideoFitType.cover.desc);
+                } else {
+                  plPlayerController.toggleVideoFit(VideoFitType.contain);
+                  SmartDialog.showToast(VideoFitType.contain.desc);
+                }
+              },
+              onSecondaryTap: () {
+                if (fit == VideoFitType.contain) {
+                  plPlayerController.toggleVideoFit(VideoFitType.cover);
+                  SmartDialog.showToast(VideoFitType.cover.desc);
+                } else {
+                  plPlayerController.toggleVideoFit(VideoFitType.contain);
+                  SmartDialog.showToast(VideoFitType.contain.desc);
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  fit.desc,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
               ),
             ),
           );
@@ -848,12 +870,27 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                 )
                 .toList();
           },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              "${plPlayerController.playbackSpeed}X",
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              semanticsLabel: "${plPlayerController.playbackSpeed}倍速",
+          child: GestureDetector(
+            onLongPress: () {
+              feedBack();
+              final double currentSpeed = plPlayerController.playbackSpeed;
+              final newSpeed = currentSpeed == 1.0 ? 2.0 : 1.0;
+              plPlayerController.setPlaybackSpeed(newSpeed);
+              SmartDialog.showToast("${newSpeed}x播放");
+            },
+            onSecondaryTap: () {
+              final double currentSpeed = plPlayerController.playbackSpeed;
+              final newSpeed = currentSpeed == 1.0 ? 2.0 : 1.0;
+              plPlayerController.setPlaybackSpeed(newSpeed);
+              SmartDialog.showToast("${newSpeed}x播放");
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                "${plPlayerController.playbackSpeed}X",
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                semanticsLabel: "${plPlayerController.playbackSpeed}倍速",
+              ),
             ),
           ),
         ),
@@ -898,6 +935,28 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                       }
                       final int quality = item.quality!;
                       final newQa = VideoQuality.fromCode(quality);
+
+                      if (newQa == VideoQuality.hdrVivid ||
+                          newQa == VideoQuality.dolbyVision ||
+                          newQa == VideoQuality.hdr) {
+                        SmartDialog.show(
+                          builder: (context) {
+                            return const AlertDialog(
+                              title: Text('提示'),
+                              content: Text(
+                                '当前版本media_kit暂不支持HDR和杜比视界，将作SDR解析',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: SmartDialog.dismiss,
+                                  child: Text('确定'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }
+
                       videoDetailController
                         ..plPlayerController.cacheVideoQa = newQa.code
                         ..currentVideoQa.value = newQa
@@ -2068,7 +2127,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                               ),
                               child: BackwardSeekIndicator(
                                 duration:
-                                    plPlayerController.fastForBackwardDuration,
+                                    plPlayerController.fastForBackwardDuration_,
                                 onSubmitted: (Duration value) {
                                   plPlayerController
                                     ..mountSeekBackwardButton.value = false

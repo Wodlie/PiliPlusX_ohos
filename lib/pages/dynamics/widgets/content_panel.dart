@@ -108,11 +108,25 @@ Widget content(
 }
 
 Widget _contextMenuBuilder(EditableTextState state, String text) {
+  final buttonItems = state.contextMenuButtonItems
+    ..add(
+      ContextMenuButtonItem(label: '文本', onPressed: () => _onCopyText(text)),
+    );
+  if (!state.textEditingValue.selection.isCollapsed) {
+    final selected = state.textEditingValue.selection
+        .textInside(state.textEditingValue.text)
+        .trim();
+    if (selected.isNotEmpty) {
+      buttonItems.add(
+        ContextMenuButtonItem(
+          label: '打开',
+          onPressed: () => PageUtils.launchURL(selected),
+        ),
+      );
+    }
+  }
   return AdaptiveTextSelectionToolbar.buttonItems(
-    buttonItems: state.contextMenuButtonItems
-      ..add(
-        ContextMenuButtonItem(label: '文本', onPressed: () => _onCopyText(text)),
-      ),
+    buttonItems: buttonItems,
     anchors: state.contextMenuAnchors,
   );
 }

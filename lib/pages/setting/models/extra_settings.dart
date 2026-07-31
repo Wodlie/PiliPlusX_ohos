@@ -75,6 +75,13 @@ List<SettingsModel> get extraSettings => [
       onTap: _showDownPathDialog,
     ),
   ],
+  const SwitchModel(
+    title: '账号选择器显示昵称',
+    subtitle: '显示10字符以内的用户昵称',
+    leading: Icon(Icons.person_outline),
+    setKey: SettingBoxKey.accountDisplayName,
+    defaultVal: false,
+  ),
   SplitModel(
     normalModel: const NormalModel.split(
       title: '空降助手',
@@ -86,6 +93,13 @@ List<SettingsModel> get extraSettings => [
       setKey: SettingBoxKey.enableSponsorBlock,
       onTap: (context) => Get.toNamed('/sponsorBlock'),
     ),
+  ),
+  const SwitchModel(
+    title: '无痕模式不发送查询',
+    subtitle: '开启后，无痕模式下不向空降助手服务器查询跳过片段',
+    leading: Icon(Icons.not_interested_outlined),
+    setKey: SettingBoxKey.suppressSponsorBlockIncognito,
+    defaultVal: false,
   ),
   PopupModel<SkipType>(
     title: '番剧片头/片尾跳过类型',
@@ -358,6 +372,15 @@ List<SettingsModel> get extraSettings => [
     setKey: SettingBoxKey.showSeekPreview,
     defaultVal: true,
   ),
+  if (Platform.isAndroid || OS.isHarmony) ...[
+    getSaveImgPathModel(
+      context: Get.context!,
+      title: '图片&截图 保存路径',
+      key1: SettingBoxKey.saveImgPath,
+      key2: SettingBoxKey.saveScreenshotPath,
+      suffix: 'bili',
+    ),
+  ],
   const SwitchModel(
     title: '显示高能进度条',
     subtitle: '高能进度条反应了在时域上，单位时间内弹幕发送量的变化趋势',
@@ -378,6 +401,47 @@ List<SettingsModel> get extraSettings => [
     leading: Icon(CustomIcons.shield_reply),
     setKey: SettingBoxKey.enableCommAntifraud,
     defaultVal: false,
+  ),
+  NormalModel(
+    title: '默认申诉理由',
+    leading: const Icon(Icons.edit_note),
+    getSubtitle: () =>
+        Pref.defaultAppealReason.isEmpty ? '点击设置' : Pref.defaultAppealReason,
+    onTap: (context, setState) {
+      String editValue = Pref.defaultAppealReason;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('默认申诉理由'),
+          content: TextFormField(
+            autofocus: true,
+            initialValue: editValue,
+            textInputAction: TextInputAction.newline,
+            minLines: 1,
+            maxLines: 4,
+            onChanged: (value) => editValue = value,
+          ),
+          actions: [
+            TextButton(
+              onPressed: Get.back,
+              child: Text(
+                '取消',
+                style: TextStyle(color: ColorScheme.of(context).outline),
+              ),
+            ),
+            TextButton(
+              child: const Text('保存'),
+              onPressed: () {
+                Get.back();
+                Pref.defaultAppealReason = editValue;
+                setState();
+                SmartDialog.showToast('已保存');
+              },
+            ),
+          ],
+        ),
+      );
+    },
   ),
   if (Platform.isAndroid)
     const SwitchModel(
@@ -498,6 +562,72 @@ List<SettingsModel> get extraSettings => [
       } catch (_) {}
     },
   ),
+  SwitchModel(
+    title: '快速分享给指定用户',
+    subtitle: '长按分享触发，点击指定用户',
+    leading: const Icon(FontAwesomeIcons.shareFromSquare),
+    setKey: SettingBoxKey.enableQuickShare,
+    defaultVal: false,
+    onChanged: (value) async {
+      if (value && Accounts.main.isLogin) {
+        final TextEditingController controller = TextEditingController();
+        final quickShareId = Pref.quickShareId;
+        if (quickShareId != null && quickShareId != 1004428694) {
+          controller.text = quickShareId.toString();
+        }
+        final result = await showDialog<bool>(
+          context: Get.context!,
+          builder: (context) => AlertDialog(
+            title: const Text('默认分享对象的mid'),
+            content: TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: '空白默认为开发者mid',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(false);
+                },
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(true);
+                },
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+
+        if (result == true) {
+          final inputText = controller.text.trim();
+          if (inputText.isEmpty) {
+            // 如果为空，使用默认值
+            await GStorage.setting.put(SettingBoxKey.quickShareId, 1004428694);
+            SmartDialog.showToast('设置成功');
+          } else {
+            final mid = int.tryParse(inputText);
+            if (mid != null) {
+              // 如果是有效的整数，保存
+              await GStorage.setting.put(SettingBoxKey.quickShareId, mid);
+              SmartDialog.showToast('设置成功');
+            } else {
+              // 如果不是有效的整数，显示错误并关闭选项
+              SmartDialog.showToast('请输入正确mid');
+              await GStorage.setting.put(SettingBoxKey.enableQuickShare, false);
+            }
+          }
+        } else {
+          // 用户点击取消，关闭选项
+          await GStorage.setting.put(SettingBoxKey.enableQuickShare, false);
+        }
+      }
+    },
+  ),
   const SwitchModel(
     title: '快速收藏',
     subtitle: '点击设置默认收藏夹\n点按收藏至默认，长按选择文件夹',
@@ -513,6 +643,13 @@ List<SettingsModel> get extraSettings => [
     setKey: SettingBoxKey.enableWordRe,
     defaultVal: false,
     onChanged: (value) => ReplyItemGrpc.enableWordRe = value,
+  ),
+  const SwitchModel(
+    title: '评论区AI翻译',
+    subtitle: '在评论区显示翻译按钮',
+    leading: Icon(Icons.translate),
+    setKey: SettingBoxKey.enableCommentTranslate,
+    defaultVal: true,
   ),
   const SwitchModel(
     title: '启用AI总结',

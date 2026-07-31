@@ -1707,6 +1707,17 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
   ) {
     final items = editableTextState.contextMenuButtonItems;
     if (!editableTextState.textEditingValue.selection.isCollapsed) {
+      final selected = editableTextState.textEditingValue.selection
+          .textInside(editableTextState.textEditingValue.text)
+          .trim();
+      if (selected.isNotEmpty) {
+        items.add(
+          ContextMenuButtonItem(
+            label: '打开',
+            onPressed: () => PageUtils.launchURL(selected),
+          ),
+        );
+      }
       items.add(
         ContextMenuButtonItem(
           onPressed: () {
