@@ -1,4 +1,4 @@
-import 'package:PiliPlus/grpc/bilibili/app/im/v1.pb.dart';
+import 'package:PiliPlus/grpc/bilibili/app/im/v1.pb.dart' hide SessionInfo;
 import 'package:PiliPlus/grpc/bilibili/im/interfaces/v1.pb.dart';
 import 'package:PiliPlus/grpc/bilibili/im/type.pb.dart';
 import 'package:PiliPlus/grpc/grpc_req.dart';
@@ -17,20 +17,34 @@ abstract final class ImGrpc {
   }) {
     return GrpcReq.request(
       GrpcUrl.sendMsg,
-      ReqSendMsg(
-        msg: Msg(
-          senderUid: Int64(senderUid),
-          receiverType: 1,
-          receiverId: Int64(receiverId),
-          msgType: msgType.value,
-          content: content,
-          timestamp: Int64(DateTime.now().millisecondsSinceEpoch ~/ 1000),
-          msgStatus: 0,
-          newFaceVersion: 1,
-        ),
-        devId: GrpcHeaders.currentImDeviceId(),
+      buildSendMsgRequest(
+        senderUid: senderUid,
+        receiverId: receiverId,
+        content: content,
+        msgType: msgType,
       ),
       RspSendMsg.fromBuffer,
+    );
+  }
+
+  static ReqSendMsg buildSendMsgRequest({
+    required int senderUid,
+    required int receiverId,
+    required String content,
+    MsgType msgType = MsgType.EN_MSG_TYPE_TEXT,
+  }) {
+    return ReqSendMsg(
+      msg: Msg(
+        senderUid: Int64(senderUid),
+        receiverType: 1,
+        receiverId: Int64(receiverId),
+        msgType: msgType.value,
+        content: content,
+        timestamp: Int64(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+        msgStatus: 0,
+        newFaceVersion: 1,
+      ),
+      devId: GrpcHeaders.currentImDeviceId(),
     );
   }
 
@@ -49,15 +63,27 @@ abstract final class ImGrpc {
   }) {
     return GrpcReq.request(
       GrpcUrl.syncFetchSessionMsgs,
-      ReqSessionMsg(
-        talkerId: Int64(talkerId),
-        sessionType: 1,
+      buildSyncFetchSessionMsgsRequest(
+        talkerId: talkerId,
         endSeqno: endSeqno,
         beginSeqno: beginSeqno,
-        size: 20,
-        devId: GrpcHeaders.currentImDeviceId(),
       ),
       RspSessionMsg.fromBuffer,
+    );
+  }
+
+  static ReqSessionMsg buildSyncFetchSessionMsgsRequest({
+    required int talkerId,
+    Int64? endSeqno,
+    Int64? beginSeqno,
+  }) {
+    return ReqSessionMsg(
+      talkerId: Int64(talkerId),
+      sessionType: 1,
+      endSeqno: endSeqno,
+      beginSeqno: beginSeqno,
+      size: 20,
+      devId: GrpcHeaders.currentImDeviceId(),
     );
   }
 
@@ -210,6 +236,18 @@ abstract final class ImGrpc {
       GrpcUrl.getTotalUnread,
       ReqTotalUnread(unreadType: unreadType, showUnfollowList: 1),
       RspTotalUnread.fromBuffer,
+    );
+  }
+
+  static Future<LoadingState<SessionInfo>> sessionDetail({
+    Int64? talkerId,
+    int? sessionType,
+    Int64? uid,
+  }) {
+    return GrpcReq.request(
+      GrpcUrl.sessionDetail,
+      ReqSessionDetail(talkerId: talkerId, sessionType: sessionType, uid: uid),
+      SessionInfo.fromBuffer,
     );
   }
 }

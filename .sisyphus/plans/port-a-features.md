@@ -858,7 +858,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
 
 ### Batch 2 — 内容功能（依赖 Batch 1；6 任务并行）
 
-- [ ] 12. 港澳台番剧（HomeTab/搜索/pgc 代理）
+- [x] 12. 港澳台番剧（HomeTab/搜索/pgc 代理）
 
   **What to do**:
   - `lib/models/common/home_tab_type.dart`：加 `hk_bangumi` 枚举值 + `ctr`/`page` switch 分支（参照 A）
@@ -923,7 +923,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/models/common/home_tab_type.dart`, `lib/models/common/search/search_type.dart`, `lib/pages/pgc/controller.dart`, `lib/pages/pgc/view.dart`, `lib/pages/search_result/view.dart`, `lib/http/pgc.dart`, `lib/http/search.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 13. AI 总结多服务（router + legacy/multimodal adapters + 设置组）
+- [x] 13. AI 总结多服务（router + legacy/multimodal adapters + 设置组）
 
   **What to do**:
   - 新建 `lib/http/ai_summary_service_router.dart`（参照 A，ONLY_A）：`AiSummaryServiceRouter` 服务选择路由
@@ -1184,7 +1184,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/pages/main_reply/view.dart`, `lib/pages/common/reply_controller.dart`, `lib/pages/video/reply/widgets/reply_item_grpc.dart`, `lib/utils/share_utils.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 17. 私信会话详情 + whisper 标为已读
+- [x] 17. 私信会话详情 + whisper 标为已读
 
   **What to do**:
   - 按需重写 `lib/grpc/im.dart`：恢复 `sessionDetail`（参照 A；B 已删，whisper item 已改造）

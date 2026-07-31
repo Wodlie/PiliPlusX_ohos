@@ -8,6 +8,9 @@ import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
 import 'package:PiliPlus/grpc/bilibili/app/im/v1.pb.dart'
     show Session, SessionId, SessionPageType, SessionType, UnreadStyle;
+import 'package:PiliPlus/grpc/im.dart';
+import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/http/msg.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
 import 'package:PiliPlus/pages/whisper_secondary/view.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
@@ -16,6 +19,7 @@ import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart' hide ListTile;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
@@ -33,6 +37,28 @@ class WhisperSessionItem extends StatelessWidget {
   final Function(bool isTop, SessionId id) onSetTop;
   final Function(bool isMuted, Int64 talkerUid) onSetMute;
   final ValueChanged<int> onRemove;
+
+  Future<void> _updateAck(BuildContext context) async {
+    final talkerUid = item.id.privateId.talkerUid;
+    final res = await ImGrpc.sessionDetail(talkerId: talkerUid, sessionType: 1);
+    if (res case Success(:final response)) {
+      final res = await MsgHttp.ackSessionMsg(
+        talkerId: talkerUid.toInt(),
+        ackSeqno: response.ackSeqno.toInt(),
+      );
+      if (res.isSuccess) {
+        SmartDialog.showToast('已标为已读');
+        item.clearUnread();
+        if (context.mounted) {
+          (context as Element).markNeedsBuild();
+        }
+      } else {
+        res.toast();
+      }
+    } else {
+      res.toast();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +83,7 @@ class WhisperSessionItem extends StatelessWidget {
           : null,
       onLongPress: () => showDialog(
         context: context,
-        builder: (context) => SimpleDialog(
+        builder: (_) => SimpleDialog(
           clipBehavior: Clip.hardEdge,
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
           children: [
@@ -68,7 +94,15 @@ class WhisperSessionItem extends StatelessWidget {
               },
               child: Text(item.isPinned ? '移除置顶' : '置顶'),
             ),
-            if (item.id.privateId.hasTalkerUid())
+            if (item.id.privateId.hasTalkerUid()) ...[
+              if (kDebugMode || item.hasUnread())
+                DialogOption(
+                  onPressed: () {
+                    Get.back();
+                    _updateAck(context);
+                  },
+                  child: const Text('标为已读'),
+                ),
               DialogOption(
                 onPressed: () {
                   Get.back();
@@ -76,7 +110,6 @@ class WhisperSessionItem extends StatelessWidget {
                 },
                 child: Text('${item.isMuted ? '关闭' : '开启'}免打扰'),
               ),
-            if (item.id.privateId.hasTalkerUid())
               DialogOption(
                 onPressed: () {
                   Get.back();
@@ -89,6 +122,7 @@ class WhisperSessionItem extends StatelessWidget {
                 },
                 child: const Text('删除'),
               ),
+            ],
           ],
         ),
       ),
@@ -96,20 +130,26 @@ class WhisperSessionItem extends StatelessWidget {
           ? (details) => showMenu(
               context: context,
               position: PageUtils.menuPosition(details.globalPosition),
-              items: [
+              items: <PopupMenuEntry<Never>>[
                 PopupMenuItem(
                   height: 42,
                   onTap: () => onSetTop(item.isPinned, item.id),
                   child: Text(item.isPinned ? '移除置顶' : '置顶'),
                 ),
-                if (item.id.privateId.hasTalkerUid())
+                if (item.id.privateId.hasTalkerUid()) ...[
+                  if (kDebugMode || item.hasUnread())
+                    PopupMenuItem(
+                      height: 42,
+                      onTap: () => _updateAck(context),
+                      child: const Text('标为已读'),
+                    ),
                   PopupMenuItem(
                     height: 42,
                     onTap: () =>
                         onSetMute(item.isMuted, item.id.privateId.talkerUid),
                     child: Text('${item.isMuted ? '关闭' : '开启'}免打扰'),
                   ),
-                if (item.id.privateId.hasTalkerUid())
+                  const PopupMenuDivider(height: 10),
                   PopupMenuItem(
                     height: 42,
                     onTap: () => showConfirmDialog(
@@ -120,6 +160,7 @@ class WhisperSessionItem extends StatelessWidget {
                     ),
                     child: const Text('删除'),
                   ),
+                ],
               ],
             )
           : null,

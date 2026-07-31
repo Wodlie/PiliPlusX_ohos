@@ -101,3 +101,31 @@
 - **hk_api_retry_interceptor 固有 2 条 info lint**（avoid_void_async:9 onResponse、unnecessary_await_in_return:71）——dio onResponse 签名是 void 但要 await 重试，A 原实现同款；info 级不阻塞 gate。
 - **analyze 181 → 163（−18）**：恰为 init_test.dart 的 18 个 undefined 错误转绿；37 warnings 保持（T10 基线），无新增 error/warning。
 - **PowerShell 陷阱**：`$out = cmd 2>&1` 后 Select-String 计数可能为 0（ErrorRecord 对象），要直接管道 `cmd 2>&1 | Select-String -SimpleMatch "warning - "` 才准。
+
+## [2026-07-31] Task: T12（港澳台番剧 hk_bangumi + media_hk_bangumi + pgc 代理）
+- **B 的 http/search.dart 缺 storage_pref import**：A 有 utils/storage_pref.dart（line 17），B 的对应位置是 wbi_sign——补 hk 分支后必须补 import，否则 Pref undefined。移植 A 时**先对比 import 清单**。
+- **B 的 pgc/controller.dart 缺 http/api.dart import**：A 的 controller 引 Api.pgcTimeline/pgcIndexResult，B 之前硬编码在 PgcHttp 内；恢复 apiUrl 参数后 controller 直接引 Api，需补 import。
+- **apiUrl 参数恢复的调用方全量检查**：PgcHttp.pgcIndex/pgcTimeline 全库调用方只有 pgc/controller.dart（grep 确认 2 处）——加 equired String apiUrl 不破坏其他调用点。
+- **枚举追加的穷尽性检查清单**：改 SearchType/HomeTabType 后 grep switch (this) / switch (item) / switch (searchType) 找穷尽 switch；live_search/member_search 的 searchType 是独立枚举，不受影响。
+- **HomeTabType.values 自动接线**：home/controller.dart 默认 tabs = values → 新枚举值自动出现；style_settings defaultBars 同。hk_bangumi 插在 bangumi 后使 cinema index 5→6，与 A 一致即可（不迁移 tabBarSort）。
+- **info 级 lint 容忍**：hk_bangumi 触发 constant_identifier_names（info），A 同文件同 lint，不阻塞 gate；baseline 只按 error/warning 计数。
+- **analyze 159 vs 163**：T12 后 error 数比 T11 基线少 4（全在既有 test/ RED，非本任务引入）；7 改动文件 0 error。验收标准是"不新增"，比基线低即达标。
+
+## [2026-07-31] Task: T17（sessionDetail + build* 包装 + whisper 标为已读）
+- **SessionInfo 双定义**：`app/im/v1.pb.dart:4137` 与 `im/type.pb.dart:3055` 都有 SessionInfo；sessionDetail 响应用 type.pb 的（含 ackSeqno:3273 供标已读），im.dart import 首行加 `hide SessionInfo`（A 同款），whisper item 的 Session 仍来自 app/im（show 子句不受影响）。
+- **ReqSessionDetail 字段**（interfaces/v1.pb.dart:1764）：talkerId(1,int64)/sessionType(2,int32)/uid(3,int64)，B 已含，无需重新生成 pb。
+- **T9 注入保留法**：恢复 build* 时把 sendMsg/syncFetchSessionMsgs 内联的 ReqSendMsg/ReqSessionMsg 抽成 build* 方法并返回，`devId: GrpcHeaders.currentImDeviceId()` 原样保留——测试断言 devId==derived.deviceId 且 isNot('1') 由该注入满足。
+- **showMenu spread 陷阱**：items 列表用 `if (...) ...[` 展开后无法推断 E（PopupMenuEntry<dynamic> vs List<StatefulWidget> 报错），必须显式 `items: <PopupMenuEntry<Never>>[`（A 原版就这么写）。
+- **长按 dialog context**：builder 参数必须 `(_)`（A 模式），否则闭包里 context 是 dialog 的，`(context as Element).markNeedsBuild()` 不会重建 ListTile；desktop 右键菜单内 _updateAck(context) 用的是 ListTile 外层 context（闭包捕获 build 的 context），天然正确。
+- **analyze 计数瞬时抖动**：并行 Task（T12/T13 写 pgc/search）时 analyze 首跑可能瞬时报 250，等稳定后再取数；159 = 163 基线 − 4（grpc_identity 全绿），分布 85 context_menu + 68 test + 6 vendored 与基线结构一致。
+- **grpc_identity_test 转绿**：剩 4 错误（buildSendMsgRequest/buildSyncFetchSessionMsgsRequest 各×2）本任务清零，T9 learnings 确认的验收目标达成。
+
+## [2026-07-31] Task: T13（AI 总结多服务：router + legacy/multimodal/subtitle + 设置组）
+- **B 的 ai_summary 基础设施已齐，T13 只补 router+adapters**：Pref.aiSummaryService/BaseUrl/ApiKey/TextModel/MultimodalModel/TimeoutSeconds + SettingBoxKey 全在；openai_compatible_summary_provider / ai_summary_service / video_summary_provider / bilibili_legacy_summary_adapter / video_ai_conclusion 全套模型均与 A 逐字节 SAME → 3 个新文件按 A verbatim 零改动可编译。
+- **B 的 video.dart 不 import material**（只 show compute, visibleForTesting），A 能直接用 data.durl?.firstOrNull 是因为 A 走 material 间接 re-export；B 必须补 import 'package:collection/collection.dart' show IterableExtension;，否则 firstOrNull 未定义。
+- **B 的 ugc/controller 保留 static getAiConclusion**：A 已删除该方法但 video_popup_menu.dart 仍调用（A 是编译破坏的遗留）；B 不能删，否则 popup menu 的 AI总结 入口编译失败。实例 aiConclusion() 换成 router 版即可。
+- **鸿蒙待适配 TODO 不动**：pages/video/view.dart:1951 showAiBottomSheet 仍消费 iConclusionResult!（AiConclusionResult?），controller 字段类型不变就不会碰它。
+- **_ => 兜底 warning 是 A verbatim 固有**：messageForResult 的 sealed switch 穷尽后 _ => 触发 unreachable_switch_case（warning 级，--no-fatal-warnings 不 gate）；A 同代码同 warning，为保一致保留。
+- **widget 测试在本仓库无法编译**：lib/common/widgets/flutter/text_field/editable_text.dart:5559（ExtendSelectionByPageIntent not found）是基线 error，任何间接 import material 的测试（含无关的 fractionally_sized_box_test）都编译失败 → 环境性限制，RED 验证只能以 analyze 级 0 error 为准。
+- **source-contract 测试是可行的运行验证**：video_summary_routing_test（dart:io File 读源 + flutter_test）2/2 PASS；test/http/ai_summary_test.dart 38/39 PASS，唯一失败 model_result.dart 期望 List<Subtitle>? subtitle 是既有契约 bug（模型两仓库 SAME 且无该字段，A 同样失败）。
+- **analyze 计数**：159（T12/T17 后基线）→ 146（−13 = 12×messageForResult + 1×hasContent），与 T17 notepad 的基线推导一致。

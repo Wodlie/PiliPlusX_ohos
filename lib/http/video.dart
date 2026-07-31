@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:collection/collection.dart' show IterableExtension;
 import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart'
     show ReplyInfo;
 import 'package:PiliPlus/http/api.dart';
@@ -293,6 +294,50 @@ abstract final class VideoHttp {
       87008 => '当前视频可能是专属视频，可能需包月充电观看($msg})',
       _ => '错误($code): $msg',
     };
+  }
+
+  static Future<LoadingState<String>> ugcSummaryMp4Url({
+    required String bvid,
+    required int cid,
+  }) async {
+    final params = await WbiSign.makSign({
+      'bvid': bvid,
+      'cid': cid,
+      'qn': 16,
+      'fnval': 1,
+      'fnver': 0,
+      'platform': 'html5',
+    });
+
+    try {
+      final res = await Request().get(Api.ugcUrl, queryParameters: params);
+      if (res.data['code'] != 0) {
+        return Error(_parseVideoErr(res.data['code'], res.data['message']));
+      }
+
+      final PlayUrlModel data = PlayUrlModel.fromJson(res.data['data']);
+      final Durl? firstDurl = data.durl?.firstOrNull;
+      if (firstDurl == null) {
+        return const Error('未获取到 bilibili 360P MP4 durl');
+      }
+
+      String? mediaUrl;
+      for (final item in firstDurl.playUrls) {
+        final Uri? uri = Uri.tryParse(item);
+        if (uri != null &&
+            (uri.scheme == 'http' || uri.scheme == 'https') &&
+            uri.host.isNotEmpty) {
+          mediaUrl = item;
+          break;
+        }
+      }
+      if (mediaUrl == null) {
+        return const Error('bilibili 360P MP4 durl 无有效 URL');
+      }
+      return Success(mediaUrl);
+    } catch (e, s) {
+      return Error('$e\n\n$s');
+    }
   }
 
   // 视频信息 标题、简介
@@ -861,6 +906,38 @@ abstract final class VideoHttp {
       }
     }
     return null;
+  }
+
+  static Future<String?> transcriptSubtitles(String subtitleUrl) async {
+    final res = await Request().get("https:$subtitleUrl");
+    if (res.data?['body'] case List list) {
+      return compute<List, String>(_processTranscriptList, list);
+    }
+    return null;
+  }
+
+  static String _processTranscriptList(List list) {
+    final StringBuffer sb = StringBuffer();
+    String? previousContent;
+    for (final item in list) {
+      if (item is! Map) continue;
+      final String content = item['content']?.toString().trim() ?? '';
+      if (content.isEmpty || content == previousContent) continue;
+      previousContent = content;
+      final num seconds = item['from'] is num
+          ? item['from'] as num
+          : num.tryParse(item['from'].toString()) ?? 0;
+      final int h = seconds ~/ 3600;
+      final int m = (seconds % 3600) ~/ 60;
+      final int s = (seconds % 60).toInt();
+      final timecode =
+          '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+      if (sb.length > 0) {
+        sb.writeln();
+      }
+      sb.write('[$timecode] $content');
+    }
+    return sb.toString();
   }
 
   static bool _canAddRank(Map i) {
