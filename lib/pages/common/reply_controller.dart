@@ -22,6 +22,8 @@ abstract class ReplyController<R> extends CommonListController<R, ReplyInfo> {
   late final Rx<ReplySortType> sortType;
   late Mode mode;
 
+  final RxBool canSort = true.obs;
+
   final savedReplies = <Object, List<RichTextItem>?>{};
 
   Int64? upMid;
@@ -64,6 +66,7 @@ abstract class ReplyController<R> extends CommonListController<R, ReplyInfo> {
     count.value = data.subjectControl.count.toInt();
     if (isRefresh) {
       subjectControl = data.subjectControl;
+      canSort.value = data.subjectControl.switcherType == Int64(1);
       upMid ??= data.subjectControl.upMid;
       if (hasUpTop = data.hasUpTop()) {
         data.replies.insert(0, data.upTop);
@@ -81,12 +84,13 @@ abstract class ReplyController<R> extends CommonListController<R, ReplyInfo> {
     cursorNext = null;
     subjectControl = null;
     paginationReply = null;
+    canSort.value = true;
     return super.onRefresh();
   }
 
   // 排序搜索评论
   void queryBySort() {
-    if (isLoading) return;
+    if (isLoading || !canSort.value) return;
     switch (sortType.value) {
       case ReplySortType.time:
         sortType.value = ReplySortType.hot;

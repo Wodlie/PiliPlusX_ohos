@@ -1120,7 +1120,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/pages/video/reply/controller.dart`, `lib/pages/video/reply/widgets/reply_item_grpc.dart`, `lib/http/reply.dart`, `lib/http/api.dart`, `lib/utils/reply_utils.dart`, `lib/pages/setting/*`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 16. canSort + 长按拉黑/分享 + 手动加载评论图
+- [x] 16. canSort + 长按拉黑/分享 + 手动加载评论图
 
   **What to do**:
   - `canSort` 排序可用性开关：`lib/pages/main_reply/view.dart` + `lib/pages/common/reply_controller.dart`（`subjectControl.switcherType` 控制，参照 A）

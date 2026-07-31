@@ -668,6 +668,10 @@ abstract final class VideoHttp {
     required int act,
     required int reSrc,
   }) async {
+    final identity = RequestIdentityAdapter.fromAccount(
+      account: Accounts.main,
+      userAgent: BrowserUa.pc,
+    );
     final res = await Request().post(
       Api.relationMod,
       queryParameters: {
@@ -684,7 +688,7 @@ abstract final class VideoHttp {
         'extend_content': jsonEncode({
           "entity": "user",
           "entity_id": mid,
-          'fp': BrowserUa.pc,
+          'fp': identity.fpLocal,
         }),
         'csrf': Accounts.main.csrf,
       },

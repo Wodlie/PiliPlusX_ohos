@@ -37,9 +37,11 @@ import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/global_data.dart';
+import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/share_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -163,6 +165,7 @@ class ReplyItemGrpc extends StatefulWidget {
 
 class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
   bool _expanded = false;
+  bool _loadManualImages = false;
 
   @override
   Widget build(BuildContext context) {
@@ -545,18 +548,7 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
         if (widget.replyItem.content.pictures.isNotEmpty) ...[
           Padding(
             padding: padding,
-            child: ImageGridView(
-              picArr: widget.replyItem.content.pictures
-                  .map(
-                    (item) => ImageModel(
-                      width: item.imgWidth,
-                      height: item.imgHeight,
-                      url: item.imgSrc,
-                    ),
-                  )
-                  .toList(),
-              onViewImage: widget.onViewImage,
-            ),
+            child: _buildCommentImages(context, colorScheme),
           ),
           const SizedBox(height: 4),
         ],
@@ -589,6 +581,53 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
         ),
         _buildContent(context, theme.colorScheme),
       ],
+    );
+  }
+
+  Widget _buildCommentImages(BuildContext context, ColorScheme colorScheme) {
+    if (!Pref.manualLoadCommentImage || _loadManualImages) {
+      return ImageGridView(
+        picArr: widget.replyItem.content.pictures
+            .map(
+              (item) => ImageModel(
+                width: item.imgWidth,
+                height: item.imgHeight,
+                url: item.imgSrc,
+              ),
+            )
+            .toList(),
+        onViewImage: widget.onViewImage,
+      );
+    }
+    final count = widget.replyItem.content.pictures.length;
+    return GestureDetector(
+      onTap: () => setState(() => _loadManualImages = true),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        decoration: BoxDecoration(
+          color: colorScheme.onInverseSurface,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.photo_outlined,
+              size: 28,
+              color: colorScheme.outline,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '点击加载图片（共$count张）',
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.outline,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1337,6 +1376,68 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
               leading: Icon(Icons.error_outline, color: errorColor, size: 19),
               title: Text('举报', style: style.copyWith(color: errorColor)),
             ),
+          if (ownerMid != Int64.ZERO)
+            ListTile(
+              onTap: () async {
+                Get.back();
+                bool? isConfirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) {
+                    final colorScheme = ColorScheme.of(context);
+                    return AlertDialog(
+                      title: const Text('拉黑评论者'),
+                      content: Text.rich(
+                        TextSpan(
+                          children: [
+                            const TextSpan(
+                              text: '确定将该用户加入黑名单？\n\n',
+                            ),
+                            TextSpan(
+                              text: '@${item.member.name}',
+                              style: TextStyle(color: colorScheme.primary),
+                            ),
+                            const TextSpan(text: '\n该评论将被屏蔽，无需再次拉黑'),
+                          ],
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Get.back(result: false),
+                          child: Text(
+                            '取消',
+                            style: TextStyle(color: colorScheme.outline),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Get.back(result: true),
+                          child: const Text('确定'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+                if (isConfirm != true) return;
+                SmartDialog.showLoading(msg: '正在拉黑...');
+                final res = await VideoHttp.relationMod(
+                  mid: item.member.mid.toInt(),
+                  act: 5,
+                  reSrc: 11,
+                );
+                SmartDialog.dismiss();
+                if (res.isSuccess) {
+                  final mid = item.member.mid.toInt();
+                  GlobalData().blackMids.add(mid);
+                  Pref.setBlackMid(mid);
+                  onDelete();
+                  SmartDialog.showToast('已拉黑该用户');
+                } else {
+                  SmartDialog.showToast('拉黑失败');
+                }
+              },
+              minLeadingWidth: 0,
+              leading: Icon(Icons.block, color: errorColor, size: 19),
+              title: Text('拉黑评论者', style: style.copyWith(color: errorColor)),
+            ),
           if (widget.replyLevel == 1 && !isSubReply && ownerMid == widget.upMid)
             ListTile(
               onTap: () {
@@ -1358,6 +1459,25 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
             minLeadingWidth: 0,
             leading: const Icon(Icons.copy_all_outlined, size: 19),
             title: Text('复制全部', style: style),
+          ),
+          ListTile(
+            onTap: () {
+              Get.back();
+              final int type = item.type.toInt();
+              final String url = switch (type) {
+                1 =>
+                  'https://www.bilibili.com/video/${IdUtils.av2bv(item.oid.toInt())}/#reply${item.id}',
+                12 =>
+                  'https://www.bilibili.com/read/cv${item.oid.toInt()}/#reply${item.id}',
+                11 || 17 =>
+                  'https://www.bilibili.com/opus/${item.oid.toInt()}/#reply${item.id}',
+                _ => '${item.oid.toInt()}#reply${item.id}',
+              };
+              ShareUtils.shareText(url);
+            },
+            minLeadingWidth: 0,
+            leading: const Icon(Icons.share_outlined, size: 19),
+            title: Text('分享', style: style),
           ),
           ListTile(
             onTap: () {

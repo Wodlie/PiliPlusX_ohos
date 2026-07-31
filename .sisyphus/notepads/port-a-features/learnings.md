@@ -151,3 +151,12 @@ equired String apiUrl 不破坏其他调用点。
 - **模型已支持 8 状态机**：ReplyItemModel.rpid/invisible、ReplyReplyData.replies/root、ReplyRoot.invisible 全在，无需补模型。
 - **analyze 116 保持**（T14 基线）：6 改动文件 0 error 0 warning。中间 117 因 account.dart import 丢失，116 因 loading_state.dart 孤儿 import 修正（1 上 1 下回平）。
 - **test/ 无 appealComment/translateReply RED 引用**（仅 reply_translate_test 引 pb 层 map，与功能无关）——本任务无测试转绿负担。
+
+## [2026-08-01] Task: T16（canSort + 长按拉黑/分享 + 手动加载图 + 孤儿 part 删除）
+- **删 3 孤儿 part 即 −85 errors**：`dyn_menu_helper/reply_menu_helper/live_menu_helper` 声明 `part of` 但宿主无 `part` 声明。`git rm` 后 analyze 116 → **31**（= 25 test RED + 6 vendored，全已知基线）。这是 B 史上最大单次 analyze 下降。
+- **canSort 全套 4 点**：`ReplyController` 加 `RxBool canSort = true.obs`；`customHandleResponse` isRefresh 里 `canSort.value = subjectControl.switcherType == Int64(1)`（pb 的 switcherType 是 `Int64`，直接 == 编译通过）；`onRefresh` 复位 true；`queryBySort` 加 `!canSort.value` guard。view 侧按钮 onPressed/icon/label 三处门控 + 「排序不可用」。T15 的 inline 翻译架构不动，故不移植 A 的 translatedReplies/translateReply。
+- **长按菜单拉黑/分享照 A verbatim 可编译**：`VideoHttp.relationMod(mid, act:5, reSrc:11)`、`GlobalData().blackMids.add`（Set<int>）、`Pref.setBlackMid`、`ShareUtils.shareText(url)`、`IdUtils.av2bv` 全部已存在于 B——T16 只做 UI 接线。分享 URL switch 分支（1=video/12=cv/11||17=opus/_=兜底）直接照抄。
+- **手动加载图的最小移植**：B 的 `ImageGridView`（OHOS 版）**没有** `tempUnblockedUrls` 参数——A 的 `_buildCommentImages` 里 temp-unblock/key 重建逻辑属图片屏蔽（Task 20），本任务只移植 `_loadManualImages` + 占位按钮，不传 tempUnblockedUrls。删减 A 代码时先确认依赖参数在 B 存在，否则留到对应 Task。
+- **relationMod fp 修正**：B 原 `'fp': BrowserUa.pc`（T1 issues #11）。修法：`RequestIdentityAdapter.fromAccount(account: Accounts.main, userAgent: BrowserUa.pc).fpLocal`。A 用 `_accountTypeForRelationAct(act)`（5||6→blacklist）但 B 无此函数（T5 已记录），保持 B 的 `Accounts.main` 语义是正确折中。B 的 video.dart 已 import request_identity_adapter.dart（T8 遗留），零新 import。
+- **test/ RED 检查**：storage_pref_test:212 只查 `SettingBoxKey.manualLoadCommentImage` key 存在（已在），canSort/relationMod 无测试引用——本任务无转绿负担。
+- **scope 纪律**：A 的 morePanel 还有 屏蔽图片/恢复图片显示/临时恢复 + 举报 onBlockImages（Pref.enableImageBlock）——基础设施 B 全有（image_block_service.dart/全局 4 引用），但属 Task 20 域，本任务不碰，避免与 T20 冲突。
