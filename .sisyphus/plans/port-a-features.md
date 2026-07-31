@@ -538,7 +538,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/utils/accounts/account_adapter.dart`, `lib/utils/accounts/account.dart`, `lib/utils/storage.dart`, `test/hive_migration_test.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings && dart test test/hive_migration_test.dart`
 
-- [ ] 7. Accounts 生命周期状态机（canonicalize/snapshot/reply/blacklist）
+- [x] 7. Accounts 生命周期状态机（canonicalize/snapshot/reply/blacklist）
 
   **What to do**:
   - 按需重写 `lib/utils/accounts.dart`：`_AccountLifecycleState` + `canonicalize` + `mainIdentity/videoIdentity/heartbeatIdentity` getter + `reply`/`blacklist` getter + `refresh` 回写 BUVID + 清理旧 `'buvid'` 键

@@ -8,6 +8,7 @@ import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/accounts/api_type.dart';
+import 'package:PiliPlus/utils/accounts/identity_core/identity_snapshot.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -46,11 +47,13 @@ class AccountManager extends Interceptor {
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final path = options.path;
 
-    late final Account account = options.extra['account'] ?? _findAccount(path);
+    final resolved = _resolveAccountSelection(options, path);
+    final identity = resolved.identity;
+    final account = resolved.account;
 
     if (account is NoAccount || _skipCookie(path)) return handler.next(options);
 
-    if (!account.isLogin && path == Api.heartBeat) {
+    if (!identity.isLogin && path == Api.heartBeat) {
       return handler.reject(
         DioException.requestCancelled(requestOptions: options, reason: null),
         false,
@@ -188,9 +191,10 @@ class AccountManager extends Interceptor {
   }
 
   Future<void> _saveCookies(Response response) async {
-    final Account account =
-        response.requestOptions.extra['account'] ??
-        _findAccount(response.requestOptions.path);
+    final Account account = Accounts.canonicalize(
+      response.requestOptions.extra['account'] ??
+          _findAccount(response.requestOptions.path),
+    );
     final setCookies = response.headers[HttpHeaders.setCookieHeader];
     if (setCookies == null || setCookies.isEmpty) {
       return;
@@ -226,6 +230,48 @@ class AccountManager extends Interceptor {
     return path.startsWith(blockServer) ||
         path.contains('hdslb.com') ||
         path.contains('biliimg.com');
+  }
+
+  ({
+    OwnerScopedIdentitySnapshot identity,
+    Account account,
+  })
+  _resolveAccountSelection(
+    RequestOptions options,
+    String path,
+  ) {
+    final account = options.extra['account'];
+    if (account is Account && account is! NoAccount) {
+      final canonical = Accounts.canonicalize(account);
+      return (
+        identity: OwnerScopedIdentitySnapshot.fromAccount(canonical),
+        account: canonical,
+      );
+    }
+    // 当明确指定 NoAccount 时，使用真正匿名的身份
+    if (account is NoAccount) {
+      final anonymous = AnonymousAccount();
+      return (
+        identity: OwnerScopedIdentitySnapshot.fromAccount(anonymous),
+        account: anonymous,
+      );
+    }
+    if (ApiType.loginApi.contains(path)) {
+      final anonymous = AnonymousAccount();
+      return (
+        identity: OwnerScopedIdentitySnapshot.fromAccount(anonymous),
+        account: anonymous,
+      );
+    }
+    final type = AccountType.values.firstWhere(
+      (i) => ApiType.apiTypeSet[i]?.contains(path) == true,
+      orElse: () => AccountType.main,
+    );
+    final identity = Accounts.snapshot(type);
+    return (
+      identity: identity,
+      account: Accounts.get(type),
+    );
   }
 
   Account _findAccount(String path) => ApiType.loginApi.contains(path)

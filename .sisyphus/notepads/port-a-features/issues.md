@@ -51,3 +51,9 @@
 - B HEAD 本地 analyze 276 errors：85 孤儿 part + ~191 test/ 引用未移植符号（request_identity_adapter/selectable_region_ext/custom_host_interceptor 等）。
 - B test/ 有 ~20 个继承自 A 的测试文件，可作各功能族无设备验证 harness（F1/F2/F4/F5/F9/F17 等）。
 - B SDK = flutter-ohos 3.41.10-ohos-0.0.2-beta（CI 用 oh-3.41.9-release，本地略新）。
+
+## [2026-07-31] Orchestrator 验证记录（T6 完成后）
+- **.gitignore 第 152 行 'test*' 过宽**：吞掉 test/ 下新测试文件，提交需 git add -f test/<file>。后续 T6-T29 的测试文件都要注意。
+- **flutter_test 本地编译阻塞**：本地 3.44.4 无法编译 B 的传递依赖图（vendored 3.32.4-ohos 补丁、font_awesome 10.9.0、git fork 平台成员）——任何 import lib 的测试本地都编不过。验证方案：纯 Dart harness（临时目录 + stub 依赖 + 真实复制核心文件）已验证可行（T6 31/31 PASS）。后续涉及测试的任务沿用此模式。
+- **analyze 基线更新**：276 → 236（T6 后）。孤儿 part 85 + test RED 是已知基线。
+

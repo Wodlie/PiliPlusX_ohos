@@ -52,3 +52,11 @@
 - **`.gitignore:152 test*` 过宽**：目录 `test/` 命中 `test*`，新测试文件被忽略；既有测试为规则前已跟踪。提交需 `git add -f test/hive_migration_test.dart`。
 - **RED 契约进度**：identity_migration_test 21→3 errors（剩 request_identity_adapter/RequestIdentityAdapter/debugSetAppSupportDirPath，全 T8）；buvid_lifecycle 剩 13（T7 的 Accounts.mainIdentity/snapshot + T8 的 LoginHttp.appHeaders/createLoginSessionIdentity）；T6 符号全已提供。
 - **`const AppDeviceProfile(...)` 不存在**：公共构造器是 factory，测试里要用普通构造。
+
+## [2026-07-31] Task: T7（Accounts 状态机 + _resolveAccountSelection）
+- **accounts.dart 状态机可整体按 A 重写**：该文件无 OHOS 专属分支（B 仅简单数组 vs A 状态机），`git diff --no-index` 后与 A 逐字节相同。`_AccountLifecycleRegistry extends ListBase<Account>` 让外部 `accountMode[i]` get/set + `List.of(...)` 全部兼容，login/controller + mine/controller 消费方零改动。
+- **`_state` 静态初始化即构造 guest snapshot**：`OwnerScopedIdentitySnapshot.fromAccount(anonymous)` → `Pref.guestBuvid` → `GStorage.localCache`（static final eager init）——A/B storage_pref 同字节结构，无新增静态初始化风险。
+- **account_mgr 的移植边界**：只加 `_resolveAccountSelection` + `onRequest` 解构 + `_saveCookies` canonicalize + identity_snapshot import；`toast`/dioError 的 OHOS 分支（`OS.isHarmony`、connectivity 单值 `.desc`、`// TODO 鸿蒙待适配`）原样保留。B 缺 A 的 `.transformTimeout` case 是既有漂移，不动。
+- **`AnonymousAccount.delete()` 合并语义**：`Future.wait([cookieJar.deleteAll(), Pref.deleteGuestBuvid()]).whenComplete(setBuvid3)` + fawkes hack 前置——删除后 `Pref.guestBuvid` 重新生成（identity generator 对 guest owner 确定性，故测试断言 regenerated == initial）。
+- **analyze 236 → 226**（-10）：buvid_lifecycle 13→5 errors，剩 5 全 T8（debugSetAppSupportDirPath/LoginHttp.appHeaders/createLoginSessionIdentity）；identity_migration 仍 3（T8）。剩余 226 = 85 孤儿 part + test/ RED，全部已知基线。
+

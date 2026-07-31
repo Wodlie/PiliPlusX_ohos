@@ -295,7 +295,11 @@ class AnonymousAccount extends Account {
   @override
   Future<void> delete() {
     grpcHeaders['x-bili-fawkes-req-bin'] = GrpcHeaders.fawkes;
-    return cookieJar.deleteAll().whenComplete(cookieJar.setBuvid3);
+    activated = false;
+    return Future.wait([
+      cookieJar.deleteAll(),
+      Pref.deleteGuestBuvid(),
+    ]).whenComplete(cookieJar.setBuvid3);
   }
 
   static final _instance = AnonymousAccount._();
