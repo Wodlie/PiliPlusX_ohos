@@ -406,7 +406,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
 
 ### Batch 1 — 账号基础设施（依赖 Batch 0；Wave 1.1: Tasks 5-8 并行）
 
-- [ ] 5. AccountType 6 值 + api_type 路由表 + desc
+- [x] 5. AccountType 6 值 + api_type 路由表 + desc
 
   **What to do**:
   - 按需重写 `lib/models/common/account_type.dart`：加 `reply`/`blacklist` 枚举值 + `desc` 字段（参照 A）

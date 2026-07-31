@@ -34,3 +34,11 @@
 - `part of` 文件在宿主无 `part` 声明时是孤儿（不编译、不报错）——排查"为何 B 里引用不存在的扩展方法还能编译"的方法论。
 - B 现有 `selectableText()`/`selectableRichText()`（`common/widgets/selectable_text.dart`）是 OHOS 移动端 SelectableText 禁滚的官方替代；`selection_text.dart`（SAME）在 B 是死文件可复用。
 - 本机工具链是 Flutter 3.44.4/Dart 3.12.2（全局），fvm 未装 3.41.9——"B 钉 3.41.9"是声明目标，本机验证环境实际更新。
+
+## [2026-07-31] Task: T5 (AccountType 6 值 + api_type 路由表)
+- 追加枚举安全：B 的 4 值（main/heartbeat/recommend/video, index 0-3）与 A 完全一致，reply/blacklist 直接追加尾部；Hive 按 index 序列化（account_type_adapter typeId 10），顺序与 A 一致即无数据错乱。
+- `Api.liveFeedback` 在 B 全库 0 命中（A 的 api.dart:1022 有）——recommend 路由表不补该键，留 T21。
+- reply/blacklist 表所需 9 个 API 常量在 B 的 api.dart 全部存在（replyAdd/replyDel/likeReply/hateReply/replyTop/replyReport/replySubjectModify/blackLst/relationMod）——路由表可直接移植。
+- 消费点全部 index-generic（`values.length` 循环、`values[i]`、`firstWhere orElse: main`），6 值天然兼容；唯一需要改 UI 的是 privacy_settings.dart（A 版显示 title+desc+URL 列表并包 SelectionArea）。
+- A 的 `http/video.dart:108 _accountTypeForRelationAct`（5||6→blacklist）在 B 不存在——属 T9 范围，T5 不补。
+- `dart analyze` 总数（含 info）≠ error 数；基线 276 errors / 0 warnings，验收按 error 数对比。错误全部集中在 10 个孤儿 part/已知 RED 文件 + test/，改动文件 0 错误即达标。
