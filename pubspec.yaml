@@ -229,6 +229,7 @@ dependencies:
   web_socket_channel: ^3.0.3
   image: ^4.8.0
   dart_imagehash: ^2.0.2
+  visibility_detector: ^0.4.0
   # window_manager: ^0.5.1
   window_manager:
     git:

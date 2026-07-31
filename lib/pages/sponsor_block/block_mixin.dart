@@ -5,6 +5,7 @@ import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/sponsor_block.dart';
+import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_model.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_type.dart';
 import 'package:PiliPlus/models/common/sponsor_block/skip_type.dart';
@@ -12,7 +13,7 @@ import 'package:PiliPlus/models_new/sponsor_block/segment_item.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:easy_debounce/easy_throttle.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
@@ -63,6 +64,10 @@ mixin BlockMixin on GetxController {
     required int cid,
   }) async {
     resetBlock();
+
+    if (Pref.suppressSponsorBlockIncognito && MineController.anonymity.value) {
+      return;
+    }
 
     final result = await SponsorBlock.getSkipSegments(bvid: bvid, cid: cid);
     switch (result) {
@@ -246,7 +251,10 @@ mixin BlockMixin on GetxController {
     if (autoPlay && Pref.blockToast) {
       _showBlockToast('已跳过${item.segmentType.shortTitle}片段');
     }
-    if (isBlock && Pref.blockTrack) {
+    if (isBlock &&
+        Pref.blockTrack &&
+        !(Pref.suppressSponsorBlockIncognito &&
+            MineController.anonymity.value)) {
       SponsorBlock.viewedVideoSponsorTime(item.uuid);
     }
   }
@@ -319,7 +327,10 @@ mixin BlockMixin on GetxController {
   void _doVote(String uuid, int type) => SponsorBlock.voteOnSponsorTime(
     uuid: uuid,
     type: type,
-  ).then((i) => SmartDialog.showToast(i.isSuccess ? '投票成功' : '投票失败: $i'));
+  ).then((i) => SmartDialog.showToast(i.isSuccess ? '投票成功' : '投票失败: $i'))
+    .catchError((e) {
+      debugPrint('SponsorBlock vote error: $e');
+    });
 
   void _showCategoryDialog(SegmentModel segment) {
     showDialog(

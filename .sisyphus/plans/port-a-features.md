@@ -1247,7 +1247,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
 
 ### Batch 3 — 交互功能（依赖 Batch 1-2；6 任务并行）
 
-- [ ] 18. Stein 互动视频数据模型 + 进度恢复
+- [x] 18. Stein 互动视频数据模型 + 进度恢复
 
   **What to do**:
   - 按需重写 `lib/models_new/video/video_stein_edgeinfo/*.dart`（choice/data/edges/question 4 个 DIFF，参照 A 的 fork 完整版；B 为精简版）
@@ -1353,7 +1353,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/plugin/pl_player/models/bottom_control_type.dart`, `lib/plugin/pl_player/controller.dart`, `lib/plugin/pl_player/view/view.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 20. 图片屏蔽 pHash UI 接入
+- [x] 20. 图片屏蔽 pHash UI 接入
 
   **What to do**:
   - 按需重写 `lib/common/widgets/image/blocked_image_placeholder.dart`：新版（"图片已屏蔽/长按查看" + 参数化，参照 A）
@@ -1407,7 +1407,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/common/widgets/image/blocked_image_placeholder.dart`, `lib/common/widgets/image_grid/image_grid_view.dart`, `lib/common/widgets/image_viewer/gallery_viewer.dart`, `lib/common/widgets/dialog/report.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 21. 直播反馈 + 卡片反馈按钮
+- [x] 21. 直播反馈 + 卡片反馈按钮
 
   **What to do**:
   - 按需重写 `lib/http/api.dart`：恢复 `liveFeedback` 常量（参照 A）
@@ -1458,7 +1458,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/http/api.dart`, `lib/http/live.dart`, `lib/pages/live/widgets/live_item_app.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 22. 快速分享 + pmShare + enableQuickShare/quickShareId
+- [x] 22. 快速分享 + pmShare + enableQuickShare/quickShareId
 
   **What to do**:
   - 按需重写 `lib/utils/request_utils.dart`：恢复 `pmShare`（参照 A；注意 A 的 pmShare 用 `SelectionText`——B 适配为 `SelectableText`）
@@ -1521,7 +1521,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/utils/request_utils.dart`, `lib/pages/video/widgets/header_control.dart`, `lib/pages/video/introduction/ugc/view.dart`, `lib/pages/video/introduction/pgc/view.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 23. 历史续播 + SponsorBlock 无痕抑制
+- [x] 23. 历史续播 + SponsorBlock 无痕抑制
 
   **What to do**:
   - 历史续播：`lib/pages/history/widgets/item.dart` 把进度传入 pgc/ugc 播放页（参照 A；`PageUtils.viewPgc`/`viewUgc` progress 参数——确认 B 的 page_utils 是否有 progress 参数，无则按需加）

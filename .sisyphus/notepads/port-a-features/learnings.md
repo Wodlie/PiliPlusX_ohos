@@ -160,3 +160,46 @@ equired String apiUrl 不破坏其他调用点。
 - **relationMod fp 修正**：B 原 `'fp': BrowserUa.pc`（T1 issues #11）。修法：`RequestIdentityAdapter.fromAccount(account: Accounts.main, userAgent: BrowserUa.pc).fpLocal`。A 用 `_accountTypeForRelationAct(act)`（5||6→blacklist）但 B 无此函数（T5 已记录），保持 B 的 `Accounts.main` 语义是正确折中。B 的 video.dart 已 import request_identity_adapter.dart（T8 遗留），零新 import。
 - **test/ RED 检查**：storage_pref_test:212 只查 `SettingBoxKey.manualLoadCommentImage` key 存在（已在），canSort/relationMod 无测试引用——本任务无转绿负担。
 - **scope 纪律**：A 的 morePanel 还有 屏蔽图片/恢复图片显示/临时恢复 + 举报 onBlockImages（Pref.enableImageBlock）——基础设施 B 全有（image_block_service.dart/全局 4 引用），但属 Task 20 域，本任务不碰，避免与 T20 冲突。
+
+## [2026-08-01] Task: T23（历史续播 progress + SponsorBlock 无痕抑制）
+- **T23 的 page_utils 只需验证，viewPugv(progress:) 属 T27**：plan 里 Task 27 明确管 `viewPugv(progress:)`，T23 的 `viewPgc/viewUgc` 判定中 viewPgc 与 toVideoPage（UGC 入口）都已有 progress 参数——**不要**在 T23 顺手给 viewPugv 加 progress，避免与 T27 冲突。item.dart 的 cheese 分支把 progress 传给 viewPgcFromUri（B 的 viewPgcFromUri 接收 progress 但对 pugv 路径丢弃，forward-compatible，等 T27 接线）。
+- **resumeProgress 语义**：item.progress 单位是秒、且 `-1` 表示已看完、`0` 表示未看——A 用 `switch (item.progress) { final int progress when progress > 0 => progress * 1000, _ => null }` 过滤，播放页 progress 单位是毫秒。直接照抄 A 的表达式即可（item.progress 是 `int?`，pattern 匹配 int 自动处理 null）。
+- **B 的 block_mixin 缺两个 import**：B 原本 `foundation show kDebugMode`（缺 debugPrint）、无 `pages/mine/controller.dart`。补上才过编译。`Pref.suppressSponsorBlockIncognito`（storage_pref.dart:906）与 `MineController.anonymity`（static RxBool）在 B 都**已存在**，T23 只是恢复使用点。
+- **catchError 链式缩进**：B 的 `_doVote` 是单行 `SponsorBlock.voteOnSponsorTime(...).then(...)`，追加 `.catchError` 后注意缩进（A 用 `.catchError((e) { debugPrint(...); })`）。debugPrint 不触发 avoid_print。
+- **RED 检查结论**：test/ 只有 storage_pref_test 断言 SettingBoxKey key 存在（T 系列通用），无 block_mixin/history 行为引用 → 本任务无转绿负担。
+- **analyze 31 保持**：改动 2 文件（history/item + block_mixin）0 error 0 warning，总 error 数 31 = T16 基线，无新增。与并行任务（T18-T22 写 live/http/accounts 等）共存不影响计数。
+
+## [2026-08-01] Task: T21 — 直播不感兴趣反馈（liveFeedback）
+- **T5 预留验证：未加**。B 的 api_type.dart recommend 路由表只有到 `Api.liveSearch`（T5 时 `Api.liveFeedback` 常量不存在，加不进）——本任务补上，与 A 位置一致（`Api.liveSearch` 之后、`Api.bgmRecommend` 之前）。
+- **B 删的不止 http 层**：`liveFeedback` 全库 grep 0 命中，但 `models_new/live/live_feed_index/feedback.dart`（Feedback/Reason 模型）**还在**，只是 `CardLiveItem` 没接 `feedback` 字段。恢复需 3 处：`api.dart` 常量 + `live.dart` 方法 + `card_data_list_item.dart` 字段解析。
+- **`liveFeedback` 方法参数**：`Object roomId, Object id, String type`（roomid/id 用 Object 因为 JSON 可能是 int 或 String），`type: 'dislike'` 固定。签名照抄 A（live.dart:773-808），B 的 `?recommend.accessKey` null-aware 语法已支持。
+- **按钮位置**：任务描述写"右上角"，但 A 实际实现是 Stack 右下（`right: -5, bottom: -2`）——照 A 实现为准，不要改位置。
+- **live_item_app 依赖**：需补 import `http/live.dart`、`feedback.dart`、`search_text.dart`、`iterable_ext.dart`、`flutter_smart_dialog`、`get`——B 全已存在（无新依赖），只是 A 版 import 被删。
+- **analyze 31 保持**：5 文件改动（api/live/card_data_list_item/live_item_app/api_type）0 error，总 error 数 31 = T16 基线。
+
+## [2026-08-01 00:41] Task: T22（快速分享 + pmShare + enableQuickShare/quickShareId）
+- **B 的 pmShare 已完整，零修改 request_utils.dart**：T3 审计确认正确——用 `Accounts.main` + `SelectableText`（OHOS 适配已就位）。A 的 `avoidGetBack = false` 参数是死参数（A 函数体内从未引用，grep 仅声明行），B 调用方正确省略。
+- **3 处 onLongPress 只需 import + ActionItem 追加**：header_control.dart 缺 `request_utils` import；ugc/view.dart 缺 `storage_pref` import；pgc/view.dart 缺 `request_utils`+`storage_pref`+`flutter_smart_dialog`（common/widgets/dialog/dialog.dart 不 re-export SmartDialog，须直接 import flutter_smart_dialog）。consumption 模式照 A verbatim（Pref.enableQuickShare 门控 + Pref.quickShareId ?? 1004428694 + pmShare），仅删 avoidGetBack。
+- **pmShare 消息结构**（3 处一致）：`{id: aid, title, headline, source: 5, thumb: pic, author: owner.name, author_id: owner.mid}`——A/B 逐字相同。
+- **storage_pref_test 已绿**：test/storage_pref_test.dart:171,175 只断言 SettingBoxKey.enableQuickShare/quickShareId 键存在，Pref getter 已用，无 RED 负担。
+- **analyze 31 = 基线持平**：3 改动文件 0 error；grep SelectionText( 在 lib/pages/video/ 0 命中，request_utils.dart 保持 SelectableText（line 364,581）——无泄漏。
+
+## [2026-08-01] Task: T20（图片屏蔽 pHash UI 接入）
+- **B 的 image_block_service.dart 是 SAME**（含 evaluateBlock/getCachedBlockResult/addBlockedImage/blockImage/unblockImages/invalidateResultCache + `Pref.enableImageBlock` 守卫 + 持久 Isolate worker）；T20 只做 UI 消费。gallery_viewer 的 blockImage 手动去重逻辑照 A（pHash 去重 + invalidateResultCache），image_grid 的 addBlockedImage 内部已去重无需手动。
+- **visibility_detector 是 B 的传递依赖（0.4.0+2，lock 已解析）非直接依赖**——`depend_on_referenced_packages` 未启用（grep analysis_options 0 命中），但为干净起见提升为直接依赖 `^0.4.0`（graph 无新包，pub get 不变更 lock）。这是「不引入新依赖」guardrail 的最小平移。
+- **BlockedImagePlaceholder 构造签名破坏性变更**（无参 → 必填 width/height）：全库仅 image_grid_view 消费（grep 确认），无其他调用方破坏。
+- **image_grid_view 的 StatefulWidget 转换**：B 版参数（picArr/onViewImage/fullScreen）+ OHOS 适配（PlatformUtils.isMobile/isDesktop、`dart:io show Platform`）与 A 版同构，A 是超集 → 整体按 A 落盘零冲突；`Style.mdRadius`/`imgRadius`/`imgMaxRatio`/`context.mediaQueryShortestSide`/`size_ext.cacheSize` B 全有。
+- **举报联动消费点**：T16 已把 reply_item_grpc 的 morePanel 屏蔽菜单+onBlockImages 明确留给 T20——brief 交付物列 4 个 common 文件，但任务标题含「举报联动」且 T16 notepad 有转移记录，故补做了 reply_item_grpc 消费接线（`_tempUnblockImageUrls`/`_blockImageVersion` 状态 + tempUnblockedUrls 传参 + 屏蔽图片（多图多选 dialog）+ 恢复图片显示 + report onBlockImages）。B 的 ownerMid 用 `Accounts.main.mid`（A 用 `Accounts.reply.mid`），保留 B 语义。
+- **hasBlockedImages/hasUnblockedImages 检测**：`getCachedBlockResult` 三态（null=cache miss 视为未屏蔽），仅 Pref.enableImageBlock 开启时检测；屏蔽菜单按 hasUnblockedImages 显示、恢复菜单按 hasBlockedImages 显示。
+- **analyze 31 保持**（T16 基线）：4 个 common 文件 + reply_item_grpc + pubspec 改动 0 error 0 warning；image_grid_view_test/image_block_service_test/phash_cross_resolution_test 全转绿（analyze 级）。并行任务（T18/T19/T21/T22/T23）写入时 analyze 计数会瞬时抖动（37→31），等稳定后再取数。
+- **Runtime-pending**：pHash 屏蔽评估、长按查看、举报联动屏蔽图片需真机验证；验收以 analyze 0-error + 符号接线为准。
+
+## [2026-08-01] Task: T18（Stein 互动视频模型 + 进度恢复）
+- **4 个 edgeinfo 模型可直接按 A 逐字节恢复**：choice/data/edges/question 依赖（preload/skin/story_list/video/dimension/interaction）在 A/B 全部 SHA SAME，B 只需恢复这 4 个 DIFF；git diff --no-index 空输出即字节一致，但 Windows CRLF 会导致 --stat 显示差异，用归一化（CRLF→LF）后字符串比较判等。
+- **controller 的 stein 逻辑可整段移植**：A 的 steinResumeNode/_checkSteinResume/goToSteinStoryNode/历史栈不触播放器内核，依赖（UgcIntroController.onChangeEpisode 的 isStein 参数、Part(cid:)、plPlayerController.seekTo、firstOrNull）在 B 全在，逐段移植零改动可编译。
+- **goToSteinStoryNode 的 seek 语义**：storyNode.cursor>0 优先；startPos<10000 时 ×1000（秒→毫秒）；500ms 延迟等待 onChangeEpisode 生效后再 seek。
+- **_findCurrentSteinNode 兜底构造**：edgeInfo.edgeId==requestedEdgeId 且 story_list 找不到时，用 StoryList(edgeId,title,cid: preload?.video?.firstOrNull?.cid ?? cid.value, isCurrent:1) 从顶层字段构造——API 的 story_list 可能只有起点。
+- **进度恢复对话框 UI 属 T19**：A 的 _showSteinResumeDialog/_showSteinHistorySheet/_steinResumeWorker/interactiveChild/showStein 全在 pages/video/view.dart + pl_player（06_video_report §22.4）；T18 只交付控制器侧 Rx 信号（steinResumeNode）+ goToSteinStoryNode + steinHistory/recordCurrentSteinNode，T19 view 用 ever(steinResumeNode,...) 弹框并在选项点击前调 recordCurrentSteinNode。
+- **info 级 lint 容忍**：A verbatim 的 _checkSteinResume 有 curly_braces_in_flow_control_structures（controller.dart:1194，A 同 1180），info 级不 gate，--no-fatal-warnings 通过。
+- **analyze 31 保持**：4 模型 + controller 0 error 0 warning；test/ 无 stein 引用（0 RED 负担）。
+- **并行任务干扰**：git status 含 T20-T23 文件改动（image_block/report/live/api 等），本任务只动 5 个文件，diff 需按文件隔离查看。

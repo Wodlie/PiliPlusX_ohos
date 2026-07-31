@@ -38,6 +38,7 @@ import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
+import 'package:PiliPlus/utils/image_block_service.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -166,6 +167,8 @@ class ReplyItemGrpc extends StatefulWidget {
 class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
   bool _expanded = false;
   bool _loadManualImages = false;
+  final Set<String> _tempUnblockImageUrls = {};
+  int _blockImageVersion = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -587,6 +590,7 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
   Widget _buildCommentImages(BuildContext context, ColorScheme colorScheme) {
     if (!Pref.manualLoadCommentImage || _loadManualImages) {
       return ImageGridView(
+        key: ValueKey('img_$_blockImageVersion'),
         picArr: widget.replyItem.content.pictures
             .map(
               (item) => ImageModel(
@@ -597,6 +601,7 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
             )
             .toList(),
         onViewImage: widget.onViewImage,
+        tempUnblockedUrls: _tempUnblockImageUrls,
       );
     }
     final count = widget.replyItem.content.pictures.length;
@@ -1211,6 +1216,26 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
     final errorColor = colorScheme.error;
     final style = theme.textTheme.titleSmall!;
 
+    // Determine which pictures are blocked vs unblocked (from cache).
+    bool hasBlockedImages = false;
+    bool hasUnblockedImages = false;
+    if (Pref.enableImageBlock) {
+      for (final pic in item.content.pictures) {
+        final blocked = ImageBlockService.getCachedBlockResult(pic.imgSrc);
+        if (blocked == true) {
+          hasBlockedImages = true;
+        } else if (blocked == false) {
+          hasUnblockedImages = true;
+        } else {
+          // Cache miss — treat as unblocked (default visible).
+          hasUnblockedImages = true;
+        }
+        if (hasBlockedImages && hasUnblockedImages) break;
+      }
+    } else {
+      hasUnblockedImages = item.content.pictures.isNotEmpty;
+    }
+
     return Padding(
       padding: .only(
         bottom: MediaQuery.viewPaddingOf(context).bottom + 20,
@@ -1370,6 +1395,20 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
                     }
                     return res;
                   },
+                  ban: ownerMid != Int64.ZERO,
+                  showImageBlock: item.content.pictures.isNotEmpty,
+                  imageUrls: item.content.pictures
+                      .map((p) => p.imgSrc)
+                      .toList(),
+                  onBlockImages: (urls) async {
+                    for (final url in urls) {
+                      await ImageBlockService.addBlockedImage(
+                        url,
+                        flipEnabled: Pref.imageBlockFlipEnabled,
+                        rotateEnabled: Pref.imageBlockRotateEnabled,
+                      );
+                    }
+                  },
                 );
               },
               minLeadingWidth: 0,
@@ -1501,6 +1540,143 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
             leading: const Icon(Icons.copy_outlined, size: 19),
             title: Text('自由复制', style: style),
           ),
+          if (Pref.enableImageBlock && hasUnblockedImages)
+            ListTile(
+              onTap: () async {
+                Get.back();
+                final pictures = item.content.pictures;
+                if (pictures.length <= 1) {
+                  // Single image: block directly.
+                  await ImageBlockService.addBlockedImage(
+                    pictures.first.imgSrc,
+                    flipEnabled: Pref.imageBlockFlipEnabled,
+                    rotateEnabled: Pref.imageBlockRotateEnabled,
+                  );
+                  if (mounted) setState(() => _blockImageVersion++);
+                  SmartDialog.showToast('已屏蔽图片');
+                  return;
+                }
+
+                // Multiple images: show selection dialog.
+                final selected = <int>{};
+                for (int i = 0; i < pictures.length; i++) {
+                  selected.add(i);
+                }
+
+                final result = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) {
+                    final colorScheme = ColorScheme.of(ctx);
+                    return StatefulBuilder(
+                      builder: (context, setDialogState) {
+                        return AlertDialog(
+                          title: const Text('选择要屏蔽的图片'),
+                          content: SizedBox(
+                            width: double.maxFinite,
+                            child: ListView(
+                              shrinkWrap: true,
+                              children: [
+                                CheckboxListTile(
+                                  value: selected.length == pictures.length,
+                                  tristate: false,
+                                  onChanged: (v) {
+                                    setDialogState(() {
+                                      if (v == true) {
+                                        for (
+                                          int i = 0;
+                                          i < pictures.length;
+                                          i++
+                                        ) {
+                                          selected.add(i);
+                                        }
+                                      } else {
+                                        selected.clear();
+                                      }
+                                    });
+                                  },
+                                  title: const Text('全选'),
+                                ),
+                                const Divider(height: 1),
+                                for (int i = 0; i < pictures.length; i++)
+                                  CheckboxListTile(
+                                    value: selected.contains(i),
+                                    onChanged: (v) {
+                                      setDialogState(() {
+                                        if (v == true) {
+                                          selected.add(i);
+                                        } else {
+                                          selected.remove(i);
+                                        }
+                                      });
+                                    },
+                                    title: Text('图片 ${i + 1}'),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: Text(
+                                '取消',
+                                style: TextStyle(
+                                  color: colorScheme.outline,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('确定'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                );
+
+                if (result != true || selected.isEmpty) return;
+
+                for (final i in selected) {
+                  await ImageBlockService.addBlockedImage(
+                    pictures[i].imgSrc,
+                    flipEnabled: Pref.imageBlockFlipEnabled,
+                    rotateEnabled: Pref.imageBlockRotateEnabled,
+                  );
+                }
+                if (mounted) setState(() => _blockImageVersion++);
+                SmartDialog.showToast(
+                  '已屏蔽${selected.length}张图片',
+                );
+              },
+              minLeadingWidth: 0,
+              leading: Icon(
+                Icons.image_not_supported_outlined,
+                color: errorColor,
+                size: 19,
+              ),
+              title: Text('屏蔽图片', style: style.copyWith(color: errorColor)),
+            ),
+          if (Pref.enableImageBlock && hasBlockedImages)
+            ListTile(
+              onTap: () {
+                Get.back();
+                setState(() {
+                  _tempUnblockImageUrls.addAll(
+                    item.content.pictures.map((p) => p.imgSrc),
+                  );
+                  _blockImageVersion++;
+                });
+                SmartDialog.showToast('已临时恢复图片显示');
+              },
+              minLeadingWidth: 0,
+              leading: Icon(
+                Icons.image_outlined,
+                color: errorColor,
+                size: 19,
+              ),
+              title: Text('恢复图片显示', style: style.copyWith(color: errorColor)),
+            ),
           ListTile(
             onTap: () {
               Get.back();

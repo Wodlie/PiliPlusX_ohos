@@ -16,24 +16,29 @@
  */
 
 import 'dart:io' show Platform;
+import 'dart:math' show min;
 
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
+import 'package:PiliPlus/common/widgets/image/blocked_image_placeholder.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_grid/image_grid_builder.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
+import 'package:PiliPlus/utils/image_block_service.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_navigation/src/extension_navigation.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 class ImageModel {
   ImageModel({
@@ -61,23 +66,130 @@ class ImageModel {
   static bool enableLivePhoto = Pref.enableLivePhoto;
 }
 
-class ImageGridView extends StatelessWidget {
+class ImageGridView extends StatefulWidget {
   const ImageGridView({
     super.key,
     required this.picArr,
     this.onViewImage,
     this.fullScreen = false,
+    this.tempUnblockedUrls,
   });
 
   final List<ImageModel> picArr;
   final VoidCallback? onViewImage;
   final bool fullScreen;
 
+  /// URLs to temporarily show even if blocked (external control, e.g. from
+  /// the reply long-press menu). The grid merges this with its internal
+  /// [_tempUnblockedSrcs]. When the grid goes off-screen, the parent should
+  /// clear this set to restore blocking.
+  final Set<String>? tempUnblockedUrls;
+
+  /// Exposed preferences (read/written externally via settings).
   static bool horizontalPreview = Pref.horizontalPreview;
+  static bool enableImgMenu = Pref.enableImgMenu;
+
+  @override
+  State<ImageGridView> createState() => _ImageGridViewState();
+}
+
+class _ImageGridViewState extends State<ImageGridView> {
+  /// Blocking state per image URL (pHash-based).
+  final Map<String, bool> _imageBlockStatus = {};
+
+  final Set<String> _tempUnblockedSrcs = {};
+
+  bool _isTempUnblocked(String url) =>
+      _tempUnblockedSrcs.contains(url) ||
+      (widget.tempUnblockedUrls?.contains(url) ?? false);
+
+  /// Whether blocking UI is enabled. Inferred once from Pref at init.
+  bool _enableBlock = false;
+
+  /// Whether we have kicked off blocking evaluation for this grid.
+  bool _blockingInitialized = false;
+
   static final _regex = RegExp(r'/videoV|/dynamicDetail$|/articlePage');
 
+  @override
+  void initState() {
+    super.initState();
+    _enableBlock = Pref.enableImageBlock;
+  }
+
+  Future<void> _evaluateImageBlock(String imgSrc) async {
+    if (!_enableBlock) return;
+    // 1. Run pHash evaluation (existing)
+    final blocked = await ImageBlockService.evaluateBlock(imgSrc);
+    if (mounted && _imageBlockStatus[imgSrc] == null) {
+      _imageBlockStatus[imgSrc] = blocked;
+      setState(() {});
+    }
+  }
+
+  void _evaluateAllImages() {
+    if (!_enableBlock) return;
+    for (final item in widget.picArr) {
+      if (!_imageBlockStatus.containsKey(item.url)) {
+        // fire-and-forget; each calls setState when done.
+        _evaluateImageBlock(item.url);
+      }
+    }
+  }
+
+  void _showUnblockMenu(BuildContext context, String imgSrc) {
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      constraints: BoxConstraints(
+        maxWidth: min(640, context.mediaQueryShortestSide),
+      ),
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            onTap: () {
+              Get.back();
+              if (mounted) {
+                setState(() => _tempUnblockedSrcs.add(imgSrc));
+              }
+            },
+            leading: const Icon(Icons.visibility, color: Colors.red, size: 19),
+            title: const Text('确定查看图片', style: TextStyle(color: Colors.red)),
+          ),
+          ListTile(
+            onTap: () async {
+              Get.back();
+              await ImageBlockService.addBlockedImage(imgSrc);
+              if (mounted) {
+                setState(() => _imageBlockStatus[imgSrc] = true);
+              }
+              SmartDialog.showToast('已屏蔽图片');
+            },
+            leading: const Icon(
+              Icons.block,
+              color: Colors.red,
+              size: 19,
+            ),
+            title: const Text('屏蔽图片', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _onTap(BuildContext context, int index) {
-    final imgList = picArr.map(
+    final item = widget.picArr[index];
+
+    // If blocked and not temporarily unblocked → do nothing.
+    if (_enableBlock) {
+      final isBlocked = _imageBlockStatus[item.url] == true;
+      final tempUnblocked = _isTempUnblocked(item.url);
+
+      if (isBlocked && !tempUnblocked) return;
+    }
+
+    final imgList = widget.picArr.map(
       (item) {
         bool isLive = item.isLivePhoto;
         return SourceModel(
@@ -90,13 +202,13 @@ class ImageGridView extends StatelessWidget {
         );
       },
     ).toList();
-    if (horizontalPreview &&
-        !fullScreen &&
+    if (ImageGridView.horizontalPreview &&
+        !widget.fullScreen &&
         Get.currentRoute.startsWith(_regex) &&
         !context.mediaQuerySize.isPortrait) {
       final scaffoldState = Scaffold.maybeOf(context);
       if (scaffoldState != null) {
-        onViewImage?.call();
+        widget.onViewImage?.call();
         PageUtils.onHorizontalPreviewState(
           scaffoldState,
           imgList,
@@ -137,11 +249,17 @@ class ImageGridView extends StatelessWidget {
     );
   }
 
-  static bool enableImgMenu = Pref.enableImgMenu;
-
   void _showMenu(BuildContext context, int index, Offset offset) {
+    final item = widget.picArr[index];
+
+    // If blocked and not temporarily unblocked → no context menu.
+    if (_enableBlock) {
+      final isBlocked = _imageBlockStatus[item.url] == true;
+      final tempUnblocked = _isTempUnblocked(item.url);
+      if (isBlocked && !tempUnblocked) return;
+    }
+
     HapticFeedback.mediumImpact();
-    final item = picArr[index];
     showMenu(
       context: context,
       position: PageUtils.menuPosition(offset),
@@ -163,11 +281,12 @@ class ImageGridView extends StatelessWidget {
             onTap: () => PageUtils.launchURL(item.url),
             child: const Text('网页打开', style: TextStyle(fontSize: 14)),
           )
-        else if (picArr.length > 1)
+        else if (widget.picArr.length > 1)
           PopupMenuItem(
             height: 42,
-            onTap: () =>
-                ImageUtils.downloadImg(picArr.map((item) => item.url).toList()),
+            onTap: () => ImageUtils.downloadImg(
+              widget.picArr.map((item) => item.url).toList(),
+            ),
             child: const Text('保存全部', style: TextStyle(fontSize: 14)),
           ),
         if (item.isLivePhoto)
@@ -184,21 +303,32 @@ class ImageGridView extends StatelessWidget {
               style: const TextStyle(fontSize: 14),
             ),
           ),
+        PopupMenuItem(
+          height: 42,
+          onTap: () async {
+            await ImageBlockService.addBlockedImage(item.url);
+            SmartDialog.showToast('已屏蔽图片');
+          },
+          child: const Text(
+            '屏蔽图片',
+            style: TextStyle(color: Colors.red, fontSize: 14),
+          ),
+        ),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    Widget grid = Padding(
       padding: const .only(top: 6),
       child: ImageGridBuilder(
-        picArr: picArr,
+        picArr: widget.picArr,
         onTap: (index) => _onTap(context, index),
-        onSecondaryTapUp: enableImgMenu && PlatformUtils.isDesktop
+        onSecondaryTapUp: ImageGridView.enableImgMenu && PlatformUtils.isDesktop
             ? (index, offset) => _showMenu(context, index, offset)
             : null,
-        onLongPressStart: enableImgMenu && PlatformUtils.isMobile
+        onLongPressStart: ImageGridView.enableImgMenu && PlatformUtils.isMobile
             ? (index, offset) => _showMenu(context, index, offset)
             : null,
         builder: (BuildContext context, ImageGridInfo info) {
@@ -219,14 +349,70 @@ class ImageGridView extends StatelessWidget {
               cacheWidth: width.cacheSize(context),
             ),
           );
-          return List.generate(picArr.length, (index) {
-            void onTap() => _onTap(context, index);
-            final item = picArr[index];
+          return List.generate(widget.picArr.length, (index) {
+            final item = widget.picArr[index];
             final borderRadius = _borderRadius(
               info.column,
-              picArr.length,
+              widget.picArr.length,
               index,
             );
+            final imgSrc = item.url;
+
+            // ── Blocked: show placeholder component instead of image ──
+            // ── Pending: show neutral loading placeholder while async block check runs ──
+            // ── Normal: show preview image ──
+            if (_enableBlock) {
+              final isBlocked = _imageBlockStatus[imgSrc] == true;
+              final tempUnblocked = _isTempUnblocked(imgSrc);
+
+              if (isBlocked && !tempUnblocked) {
+                return LayoutId(
+                  id: index,
+                  child: Semantics(
+                    label: '图片已屏蔽，第 ${index + 1} 张，共 ${widget.picArr.length} 张',
+                    button: true,
+                    child: BlockedImagePlaceholder(
+                      width: width,
+                      height: height,
+                      borderRadius: borderRadius,
+                      onLongPress: () => _showUnblockMenu(context, imgSrc),
+                    ),
+                  ),
+                );
+              }
+
+              // Not yet evaluated — try sync cache, otherwise show neutral placeholder
+              if (_imageBlockStatus[imgSrc] == null) {
+                final syncResult = ImageBlockService.getCachedBlockResult(
+                  imgSrc,
+                );
+                if (syncResult != null) {
+                  _imageBlockStatus[imgSrc] = syncResult;
+                  if (syncResult && !tempUnblocked) {
+                    return LayoutId(
+                      id: index,
+                      child: Semantics(
+                        label:
+                            '图片已屏蔽，第 ${index + 1} 张，共 ${widget.picArr.length} 张',
+                        button: true,
+                        child: BlockedImagePlaceholder(
+                          width: width,
+                          height: height,
+                          borderRadius: borderRadius,
+                          onLongPress: () => _showUnblockMenu(context, imgSrc),
+                        ),
+                      ),
+                    );
+                  }
+                } else {
+                  // Cache miss — show neutral loading placeholder until async eval completes
+                  return LayoutId(id: index, child: placeHolder);
+                }
+              }
+            }
+
+            // ── Normal: show preview image ──
+            void onTap() => _onTap(context, index);
             Widget child = Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
@@ -250,7 +436,7 @@ class ImageGridView extends StatelessWidget {
               child = Hero(tag: '${item.url}$hashCode', child: child);
             }
             child = Semantics(
-              label: '图片，第 ${index + 1} 张，共 ${picArr.length} 张',
+              label: '图片，第 ${index + 1} 张，共 ${widget.picArr.length} 张',
               button: true,
               onTap: onTap,
               child: child,
@@ -260,5 +446,22 @@ class ImageGridView extends StatelessWidget {
         },
       ),
     );
+
+    // Wrap with VisibilityDetector to trigger blocking evaluation
+    // when the grid first becomes visible.
+    if (_enableBlock) {
+      grid = VisibilityDetector(
+        key: ValueKey('image_grid_block_${widget.hashCode}'),
+        onVisibilityChanged: (info) {
+          if (info.visibleFraction > 0 && !_blockingInitialized) {
+            _blockingInitialized = true;
+            _evaluateAllImages();
+          }
+        },
+        child: grid,
+      );
+    }
+
+    return grid;
   }
 }
