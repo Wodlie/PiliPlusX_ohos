@@ -934,6 +934,9 @@ abstract final class Pref {
   static int get atFilterLikeExemptThreshold =>
       _setting.get(SettingBoxKey.atFilterLikeExemptThreshold, defaultValue: 50);
 
+  static bool get enableHdsBar =>
+      _setting.get(SettingBoxKey.enableHdsBar, defaultValue: false);
+
   static bool get enableHA =>
       _setting.get(SettingBoxKey.enableHA, defaultValue: true);
 

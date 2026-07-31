@@ -83,14 +83,14 @@ class _AtFilterPageState extends State<AtFilterPage> {
             ),
           ),
           NormalItem(
-            title: '去掉 @ 后正文长度阈值',
+title: '去掉 @ 后正文长度阈值',
             getSubtitle: () =>
                 '当前: ${Pref.atFilterBodyLengthThreshold} 字；有效正文长度 ≤ 该值时过滤',
             onTap: _showBodyLengthDialog,
           ),
           const Divider(height: 1),
           NormalItem(
-            title: '@ 数量阈值',
+title: '@ 数量阈值',
             getSubtitle: () =>
                 '当前: ${Pref.atFilterAtCountThreshold} 个；@ 提及数量 ≥ 该值时过滤',
             onTap: _showAtCountThresholdDialog,
@@ -113,7 +113,7 @@ class _AtFilterPageState extends State<AtFilterPage> {
             defaultVal: false,
           ),
           NormalItem(
-            title: '点赞豁免阈值',
+title: '点赞豁免阈值',
             getSubtitle: () =>
                 '当前: ${Pref.atFilterLikeExemptThreshold} 赞；点赞数 > 该值时放行',
             onTap: _showLikeExemptThresholdDialog,
@@ -128,7 +128,7 @@ class _AtFilterPageState extends State<AtFilterPage> {
     showDialog<double>(
       context: context,
       builder: (context) => SliderDialog(
-        title: '去掉 @ 后正文长度阈值',
+        title: const Text('去掉 @ 后正文长度阈值'),
         min: 0,
         max: 100,
         divisions: 20,
@@ -154,7 +154,7 @@ class _AtFilterPageState extends State<AtFilterPage> {
     showDialog<double>(
       context: context,
       builder: (context) => SliderDialog(
-        title: '@ 数量阈值',
+title: const Text('@ 数量阈值'),
         min: 1,
         max: 50,
         divisions: 49,
@@ -180,7 +180,7 @@ class _AtFilterPageState extends State<AtFilterPage> {
     showDialog<double>(
       context: context,
       builder: (context) => SliderDialog(
-        title: '点赞豁免阈值',
+title: const Text('点赞豁免阈值'),
         min: 0,
         max: 5000,
         divisions: 100,

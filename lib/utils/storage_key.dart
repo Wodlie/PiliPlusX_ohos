@@ -2,6 +2,7 @@
 
 abstract final class SettingBoxKey {
   static const String btmProgressBehavior = 'btmProgressBehavior',
+      enableHdsBar = 'enableHdsBar',
       defaultVideoQa = 'defaultVideoQa',
       defaultVideoQaCellular = 'defaultVideoQaCellular',
       defaultAudioQa = 'defaultAudioQa',
