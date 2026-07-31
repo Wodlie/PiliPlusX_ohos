@@ -227,7 +227,8 @@ dependencies:
       url: https://github.com/bggRGjQaUbCoE/flutter_sortable_wrap.git
       ref: master
   web_socket_channel: ^3.0.3
-  # image: ^4.7.1
+  image: ^4.8.0
+  dart_imagehash: ^2.0.2
   # window_manager: ^0.5.1
   window_manager:
     git:

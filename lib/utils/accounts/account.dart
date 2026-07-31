@@ -3,6 +3,7 @@ import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/grpc_headers.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -18,6 +19,10 @@ sealed class Account {
   set activated(bool value) => throw UnimplementedError();
 
   String? get accessKey => throw UnimplementedError();
+
+  /// 唯一 BUVID 解析入口。
+  /// 登录态仅取账号自身值；游客态仅取 guest key；不允许隐式 fallback。
+  String get buvid => throw UnimplementedError();
 
   DefaultCookieJar get cookieJar => throw UnimplementedError();
 
@@ -54,6 +59,20 @@ class LoginAccount extends Account {
   @override
   @HiveField(3)
   final Set<AccountType> type;
+
+  @override
+  late final String buvid = _resolveBuvid();
+
+  /// 从 cookie 中解析 BUVID：优先 buvid3，回退到 buvid（旧字段）。
+  String _resolveBuvid() {
+    final cookies = cookieJar.domainCookies['bilibili.com']?['/'];
+    final buvid3 = cookies?['buvid3']?.cookie.value;
+    if (buvid3 != null && buvid3.isNotEmpty) return buvid3;
+    final legacy = cookies?['buvid']?.cookie.value;
+    if (legacy != null && legacy.isNotEmpty) return legacy;
+    cookieJar.setBuvid3();
+    return cookieJar.domainCookies['bilibili.com']!['/']!['buvid3']!.cookie.value;
+  }
 
   @override
   bool activated = false;
@@ -137,6 +156,8 @@ class AnonymousAccount extends Account {
   final DefaultCookieJar cookieJar = DefaultCookieJar()..setBuvid3();
   @override
   final String? accessKey = null;
+  @override
+  String get buvid => Pref.guestBuvid;
   @override
   final String? refresh = null;
   @override
