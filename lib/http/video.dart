@@ -1,13 +1,11 @@
 import 'dart:convert';
 
-import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart'
     show ReplyInfo;
 import 'package:PiliPlus/http/api.dart';
 import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
-import 'package:PiliPlus/http/login.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/home/rcmd/result.dart';
@@ -29,6 +27,9 @@ import 'package:PiliPlus/models_new/video/video_play_info/data.dart';
 import 'package:PiliPlus/models_new/video/video_relation/data.dart';
 import 'package:PiliPlus/models_new/video/video_shot/data.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/utils/accounts/app_device_profile.dart';
+import 'package:PiliPlus/utils/accounts/request_identity_adapter.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
@@ -41,13 +42,63 @@ import 'package:PiliPlus/utils/subtitle_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/wbi_sign.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 import 'package:protobuf/protobuf.dart';
 
 /// view层根据 status 判断渲染逻辑
 abstract final class VideoHttp {
+  static const _recommendProfile = AppDeviceProfiles.androidHd;
+
   static RegExp zoneRegExp = RegExp(Pref.banWordForZone, caseSensitive: false);
   static bool enableFilter = zoneRegExp.pattern.isNotEmpty;
+
+  @visibleForTesting
+  static Map<String, dynamic> recommendAppQueryParameters({
+    required int freshIdx,
+  }) => {
+    'build': _recommendProfile.build,
+    'c_locale': 'zh_CN',
+    'channel': _recommendProfile.channel,
+    'column': 4,
+    'device': _recommendProfile.requestDevice,
+    'device_name': _recommendProfile.deviceName,
+    'device_type': 0,
+    'disable_rcmd': 0,
+    'flush': 5,
+    'fnval': 976,
+    'fnver': 0,
+    'force_host': 2,
+    'fourk': 1,
+    'guidance': 0,
+    'https_url_req': 0,
+    'idx': freshIdx,
+    'mobi_app': _recommendProfile.mobiApp,
+    'network': 'wifi',
+    'platform': _recommendProfile.platform,
+    'player_net': 1,
+    'pull': freshIdx == 0 ? 'true' : 'false',
+    'qn': 32,
+    'recsys_mode': 0,
+    's_locale': 'zh_CN',
+    'splash_id': '',
+    'statistics': _recommendProfile.statistics,
+    'voice_balance': 0,
+  };
+
+  @visibleForTesting
+  static Map<String, String> recommendAppIdentityHeaders(Account account) {
+    final identity = RequestIdentityAdapter.fromAccount(
+      account: account,
+      userAgent: _recommendProfile.userAgent,
+    );
+    return {
+      ...identity.appHeaders(
+        appKey: _recommendProfile.mobiApp,
+        userAgent: _recommendProfile.userAgent,
+      ),
+      ...identity.appIdentityHeaders,
+    };
+  }
 
   // 首页推荐视频
   static Future<LoadingState<List<RcmdVideoItemModel>>> rcmdVideoList({
@@ -89,54 +140,13 @@ abstract final class VideoHttp {
   static Future<LoadingState<List<RcmdVideoItemAppModel>>> rcmdVideoListApp({
     required int freshIdx,
   }) async {
-    final params = {
-      'build': 2001100,
-      'c_locale': 'zh_CN',
-      'channel': 'master',
-      'column': 4,
-      'device': 'pad',
-      'device_name': 'android',
-      'device_type': 0,
-      'disable_rcmd': 0,
-      'flush': 5,
-      'fnval': 976,
-      'fnver': 0,
-      'force_host': 2, //使用https
-      'fourk': 1,
-      'guidance': 0,
-      'https_url_req': 0,
-      'idx': freshIdx,
-      'mobi_app': 'android_hd',
-      'network': 'wifi',
-      'platform': 'android',
-      'player_net': 1,
-      'pull': freshIdx == 0 ? 'true' : 'false',
-      'qn': 32,
-      'recsys_mode': 0,
-      's_locale': 'zh_CN',
-      'splash_id': '',
-      'statistics': Constants.statistics,
-      'voice_balance': 0,
-    };
+    final account = Accounts.get(AccountType.recommend);
+    final params = recommendAppQueryParameters(freshIdx: freshIdx);
     final res = await Request().get(
       Api.recommendListApp,
       queryParameters: params,
       options: Options(
-        headers: {
-          'buvid': LoginHttp.buvid,
-          'fp_local':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'fp_remote':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'session_id': '11111111',
-          'env': 'prod',
-          'app-key': 'android_hd',
-          'User-Agent': Constants.userAgent,
-          'x-bili-trace-id': Constants.traceId,
-          'x-bili-aurora-eid': '',
-          'x-bili-aurora-zone': '',
-          'bili-http-engine': 'cronet',
-        },
+        headers: recommendAppIdentityHeaders(account),
       ),
     );
     if (res.data['code'] == 0) {

@@ -11,6 +11,7 @@ import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
 import 'package:PiliPlus/models_new/search/search_rcmd/data.dart';
 import 'package:PiliPlus/models_new/search/search_trending/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/dimension.dart';
+import 'package:PiliPlus/utils/accounts/request_identity_adapter.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
 import 'package:PiliPlus/utils/wbi_sign.dart';
@@ -59,6 +60,9 @@ abstract final class SearchHttp {
     String? gaiaVtoken,
     required ValueChanged<String> onSuccess,
   }) async {
+    final gaiaFields = RequestIdentityAdapter.preserveGaiaFields(
+      gaiaVtoken: gaiaVtoken,
+    );
     final params = await WbiSign.makSign({
       'search_type': searchType.name,
       'keyword': keyword,
@@ -74,14 +78,16 @@ abstract final class SearchHttp {
       'page_size': 20,
       'platform': 'pc',
       'web_location': 1430654,
-      'gaia_vtoken': ?gaiaVtoken,
+      ...gaiaFields,
     });
     final res = await Request().get(
       Api.searchByType,
       queryParameters: params,
       options: Options(
         headers: {
-          if (gaiaVtoken != null) 'cookie': 'x-bili-gaia-vtoken=$gaiaVtoken',
+          ...RequestIdentityAdapter.gaiaCookieHeaders(
+            gaiaVtoken: gaiaVtoken,
+          ),
           'origin': 'https://search.bilibili.com',
           'referer':
               'https://search.bilibili.com/${searchType.name}?keyword=${Uri.encodeFull(keyword)}',

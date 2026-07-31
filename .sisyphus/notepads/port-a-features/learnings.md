@@ -60,3 +60,16 @@
 - **`AnonymousAccount.delete()` 合并语义**：`Future.wait([cookieJar.deleteAll(), Pref.deleteGuestBuvid()]).whenComplete(setBuvid3)` + fawkes hack 前置——删除后 `Pref.guestBuvid` 重新生成（identity generator 对 guest owner 确定性，故测试断言 regenerated == initial）。
 - **analyze 236 → 226**（-10）：buvid_lifecycle 13→5 errors，剩 5 全 T8（debugSetAppSupportDirPath/LoginHttp.appHeaders/createLoginSessionIdentity）；identity_migration 仍 3（T8）。剩余 226 = 85 孤儿 part + test/ RED，全部已知基线。
 
+## [2026-07-31] Task: T8（RequestIdentityAdapter + http 身份接入 + wbi 风控）
+- **analyze 226 → 181**（-45）：request_identity_adapters 16→0、web_gaia 10→0、identity_migration 3→0、buvid_lifecycle 5→0、grpc_identity 11→4（剩 4 全 T9 ImGrpc.buildSendMsgRequest/buildSyncFetchSessionMsgsRequest）。剩余 181 = 85 孤儿 part + 6 vendored（editable_text/vertical_slider）+ 90 非 T8 测试 RED。
+- **RequestIdentityAdapter 按 A 原样移植零改动**：B 的 identity_core/app_device_profile/Constants.baseHeaders('x-bili-aurora-zone'=sh001)/IdUtils.genAuroraEid 与 A 字节级同构，A 文件可直接落盘（6285 字节）。T6/T7 的 Account.buvid/deviceProfile、OwnerScopedIdentitySnapshot、Accounts.mainIdentity 全被消费。
+- **B 的 `Pref.buvid` 已 deprecated 且委托 guestBuvid**（storage_pref.dart:1164），故 B 的 `LoginUtils.buvid`（=Pref.buvid）语义与 A 的 `Pref.guestBuvid` 等价——grpc_headers.dart:19 仍依赖它，T8 不动。
+- **身份字段接入要"补辅助方法 + 改调用点"两层**：test 只引用 @visibleForTesting 辅助方法（recommendAppQueryParameters/recommendAppIdentityHeaders/liveFeedIndexQueryParameters/appIdentityHeaders），但真正替换占位符（fp '1'*64、session '11111111'、device_name 'android'/'vivo'、buvid 全局单例）需把请求方法改走辅助方法。
+- **member/dynamics/follow 的 web 身份字段 B 原本硬编码等价 JSON**（重构级差异），唯一真实差异：dynamics.createDynamic 的 device-req-json **缺 spmid**（B 版 `{"platform":"web","device":"pc"}` vs A 含 spmid 333.999）——移植后补上；member 的 dm_img 字段从随机 `Utils.base64EncodeRandomString` 换成 identity 确定性推导。
+- **relationMod 的 fp=BrowserUa.pc 语义错误留 T16**（issues.md 既定决策），T8 不碰。
+- **wbi 风控**：`encWbi` 首行 `appendRiskFingerprintParams`（4 个 dm_img_* 默认值，`??=` 不覆盖自定义）+ `getWbiKeys` else 分支 `.catchError` 兜底（debugPrint + return ''）。
+- **accounts.dart 不 export Account**（只 import），http 文件签名要用 `Account` 类型需显式 `import .../accounts/account.dart`。
+- **analyze 陷阱**：改掉某文件唯一的使用方后要复查 unused_import（member.dart 的 utils.dart、video.dart 的 constants.dart 因移除占位字段变孤儿 import，需同步删）。
+- **现有 2 条 pre-existing warning**（storage_pref→login_utils、block_filter_settings→storage_pref 的 unused_import）非 T8 引入，文件未改不动。
+
+

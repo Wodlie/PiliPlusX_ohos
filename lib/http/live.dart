@@ -3,7 +3,6 @@ import 'package:PiliPlus/http/api.dart';
 import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
-import 'package:PiliPlus/http/login.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/models/common/live/live_contribution_rank_type.dart';
 import 'package:PiliPlus/models/common/live/live_search_type.dart';
@@ -27,12 +26,61 @@ import 'package:PiliPlus/models_new/live/live_second_list/data.dart';
 import 'package:PiliPlus/models_new/live/live_superchat/data.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/utils/accounts/app_device_profile.dart';
+import 'package:PiliPlus/utils/accounts/request_identity_adapter.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/wbi_sign.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 abstract final class LiveHttp {
+  static const _appProfile = AppDeviceProfiles.androidApp;
+
   static Account get recommend => Accounts.get(AccountType.recommend);
+
+  @visibleForTesting
+  static Map<String, dynamic> liveFeedIndexQueryParameters({
+    required Account account,
+    required int pn,
+    bool moduleSelect = false,
+  }) => {
+    'access_key': ?account.accessKey,
+    'channel': _appProfile.channel,
+    'actionKey': 'appkey',
+    'build': _appProfile.build,
+    'version': _appProfile.versionName,
+    'c_locale': 'zh_CN',
+    'device': _appProfile.requestDevice,
+    'device_name': _appProfile.deviceName,
+    'device_type': 0,
+    'fnval': 912,
+    'disable_rcmd': 0,
+    'https_url_req': 1,
+    if (moduleSelect) 'module_select': 1,
+    'mobi_app': _appProfile.mobiApp,
+    'network': 'wifi',
+    'page': pn,
+    'platform': _appProfile.platform,
+    if (account.isLogin) 'relation_page': 1,
+    's_locale': 'zh_CN',
+    'scale': 2,
+    'statistics': _appProfile.statistics,
+  };
+
+  @visibleForTesting
+  static Map<String, String> appIdentityHeaders(Account account) {
+    final identity = RequestIdentityAdapter.fromAccount(
+      account: account,
+      userAgent: _appProfile.userAgent,
+    );
+    return {
+      ...identity.appHeaders(
+        appKey: _appProfile.mobiApp,
+        userAgent: _appProfile.userAgent,
+      ),
+      ...identity.appIdentityHeaders,
+    };
+  }
 
   static Future<LoadingState<void>> sendLiveMsg({
     required Object roomId,
@@ -198,49 +246,18 @@ abstract final class LiveHttp {
     required int pn,
     bool moduleSelect = false,
   }) async {
-    final params = {
-      'access_key': ?recommend.accessKey,
-      'channel': 'master',
-      'actionKey': 'appkey',
-      'build': 8430300,
-      'version': '8.43.0',
-      'c_locale': 'zh_CN',
-      'device': 'android',
-      'device_name': 'android',
-      'device_type': 0,
-      'fnval': 912,
-      'disable_rcmd': 0,
-      'https_url_req': 1,
-      if (moduleSelect) 'module_select': 1,
-      'mobi_app': 'android',
-      'network': 'wifi',
-      'page': pn,
-      'platform': 'android',
-      if (recommend.isLogin) 'relation_page': 1,
-      's_locale': 'zh_CN',
-      'scale': 2,
-      'statistics': Constants.statisticsApp,
-    };
+    final account = recommend;
+    final params = liveFeedIndexQueryParameters(
+      account: account,
+      pn: pn,
+      moduleSelect: moduleSelect,
+    );
     AppSign.appSign(params);
     final res = await Request().get(
       Api.liveFeedIndex,
       queryParameters: params,
       options: Options(
-        headers: {
-          'buvid': LoginHttp.buvid,
-          'fp_local':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'fp_remote':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'session_id': '11111111',
-          'env': 'prod',
-          'app-key': 'android',
-          'User-Agent': Constants.userAgentApp,
-          'x-bili-trace-id': Constants.traceId,
-          'x-bili-aurora-eid': '',
-          'x-bili-aurora-zone': '',
-          'bili-http-engine': 'cronet',
-        },
+        headers: appIdentityHeaders(account),
       ),
     );
     if (res.data['code'] == 0) {
@@ -273,54 +290,41 @@ abstract final class LiveHttp {
     required Object? parentAreaId,
     String? sortType,
   }) async {
+    final account = recommend;
     final params = {
-      'access_key': ?recommend.accessKey,
+      'access_key': ?account.accessKey,
       'actionKey': 'appkey',
-      'channel': 'master',
+      'channel': _appProfile.channel,
       'area_id': ?areaId,
       'parent_area_id': ?parentAreaId,
-      'build': 8430300,
-      'version': '8.43.0',
+      'build': _appProfile.build,
+      'version': _appProfile.versionName,
       'c_locale': 'zh_CN',
-      'device': 'android',
-      'device_name': 'android',
+      'device': _appProfile.requestDevice,
+      'device_name': _appProfile.deviceName,
       'device_type': 0,
       'fnval': 912,
       'disable_rcmd': 0,
       'https_url_req': 1,
-      'mobi_app': 'android',
+      'mobi_app': _appProfile.mobiApp,
       'module_select': 0,
       'network': 'wifi',
       'page': pn,
       'page_size': 20,
-      'platform': 'android',
+      'platform': _appProfile.platform,
       'qn': 0,
       'sort_type': ?sortType,
       'tag_version': 1,
       's_locale': 'zh_CN',
       'scale': 2,
-      'statistics': Constants.statisticsApp,
+      'statistics': _appProfile.statistics,
     };
     AppSign.appSign(params);
     final res = await Request().get(
       Api.liveSecondList,
       queryParameters: params,
       options: Options(
-        headers: {
-          'buvid': LoginHttp.buvid,
-          'fp_local':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'fp_remote':
-              '1111111111111111111111111111111111111111111111111111111111111111',
-          'session_id': '11111111',
-          'env': 'prod',
-          'app-key': 'android',
-          'User-Agent': Constants.userAgentApp,
-          'x-bili-trace-id': Constants.traceId,
-          'x-bili-aurora-eid': '',
-          'x-bili-aurora-zone': '',
-          'bili-http-engine': 'cronet',
-        },
+        headers: appIdentityHeaders(account),
       ),
     );
     if (res.data['code'] == 0) {

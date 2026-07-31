@@ -7,6 +7,7 @@ import 'package:PiliPlus/main.dart';
 import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/utils/accounts/identity_core/identity_generators.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -64,6 +65,9 @@ abstract final class LoginUtils {
         if (response != Pref.userInfoCache) {
           await GStorage.userInfo.put('userInfoCache', response);
         }
+        if (response.mid != null && response.uname != null) {
+          Pref.setAccountUname(response.mid!, response.uname!);
+        }
       }
     } else {
       // 获取用户信息失败
@@ -95,10 +99,7 @@ abstract final class LoginUtils {
   }
 
   static String generateBuvid() {
-    final md5Str = Digest(
-      List.generate(16, (_) => Utils.random.nextInt(256)),
-    ).toString();
-    return 'XY${md5Str[2]}${md5Str[12]}${md5Str[22]}$md5Str';
+    return IdentityCoreGenerators.generateBuvid();
   }
 
   static final buvid = Pref.buvid;

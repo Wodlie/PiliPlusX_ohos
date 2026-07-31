@@ -8,6 +8,9 @@ import 'package:PiliPlus/models/login/model.dart';
 import 'package:PiliPlus/models_new/login_devices/data.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/utils/accounts/identity_core/identity_generators.dart';
+import 'package:PiliPlus/utils/accounts/identity_core/identity_owner.dart';
+import 'package:PiliPlus/utils/accounts/request_identity_adapter.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
@@ -16,6 +19,46 @@ import 'package:dio/dio.dart';
 import 'package:encrypt/encrypt.dart';
 
 abstract final class LoginHttp {
+  static RequestIdentityAdapter createLoginSessionIdentity({
+    String scope = 'login-session',
+  }) {
+    final buvid = IdentityCoreGenerators.generateBuvidForOwner(
+      IdentityOwnerKey.workflow(scope),
+    );
+    return RequestIdentityAdapter.fromBuvid(
+      buvid: buvid,
+      userAgent: Constants.userAgent,
+      scope: scope,
+    );
+  }
+
+  static Map<String, String> appHeaders({
+    required String buvid,
+    required String appKey,
+    required String userAgent,
+    String? contentType,
+    Account? account,
+    RequestIdentityAdapter? identity,
+  }) {
+    final resolvedIdentity =
+        identity ??
+        (account == null
+            ? RequestIdentityAdapter.fromBuvid(
+                buvid: buvid,
+                userAgent: userAgent,
+                scope: 'login-http:$appKey',
+              )
+            : RequestIdentityAdapter.fromAccount(
+                account: account,
+                userAgent: userAgent,
+              ));
+    return resolvedIdentity.appHeaders(
+      appKey: appKey,
+      userAgent: userAgent,
+      contentType: contentType,
+    );
+  }
+
   static final String deviceId = LoginUtils.genDeviceId();
   static String get buvid => LoginUtils.buvid;
   static final Map<String, String> headers = {
