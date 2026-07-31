@@ -16,7 +16,6 @@ import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
 import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart'
     show ReplyInfo, ReplyControl, Content, Url, ReplyControl_VoteOption;
 import 'package:PiliPlus/grpc/reply.dart';
-import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/reply.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
@@ -121,6 +120,9 @@ class ReplyItemGrpc extends StatefulWidget {
     this.onCheckReply,
     this.onToggleTop,
     this.jumpToDialogue,
+    this.translatedText,
+    this.isTranslating = false,
+    this.onTranslate,
     this.forceShowOriginalContent = false,
   });
   final ReplyInfo replyItem;
@@ -136,6 +138,15 @@ class ReplyItemGrpc extends StatefulWidget {
   final ValueChanged<ReplyInfo>? onCheckReply;
   final ValueChanged<ReplyInfo>? onToggleTop;
   final VoidCallback? jumpToDialogue;
+
+  /// Translated text for this reply. null/toggle to show original.
+  final String? translatedText;
+
+  /// Whether a translation request is in-flight.
+  final bool isTranslating;
+
+  /// Called when the translate button is tapped.
+  final VoidCallback? onTranslate;
 
   /// When true, always show the original comment content,
   /// skipping blocked/expanded-blocked banners.
@@ -423,38 +434,112 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
           ),
         Padding(
           padding: padding,
-          child: custom_text.Text.rich(
-            primary: colorScheme.primary,
-            style: const TextStyle(height: 1.75, fontSize: 14),
-            maxLines: widget.replyLevel == 1
-                ? ReplyItemGrpc.replyLengthLimit
-                : null,
-            TextSpan(
-              children: [
-                if (replyControl.isUpTop) ...[
-                  const WidgetSpan(
-                    alignment: PlaceholderAlignment.middle,
-                    child: PBadge(
-                      text: 'TOP',
-                      size: PBadgeSize.small,
-                      isStack: false,
-                      type: PBadgeType.line_primary,
-                      fontSize: 9,
-                      textScaleFactor: 1,
-                    ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.isTranslating) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
                   ),
-                  const TextSpan(text: ' '),
-                ],
-                _buildMessage(
-                  context,
-                  colorScheme,
-                  replyControl.showTranslation
-                      ? widget.replyItem.translatedContent
-                      : widget.replyItem.content,
-                  replyControl,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.6,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '翻译中，请稍等…',
+                          style: TextStyle(
+                            height: 1.6,
+                            fontSize: 14,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (widget.translatedText != null) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.translate,
+                        size: 14,
+                        color: colorScheme.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          widget.translatedText!,
+                          style: TextStyle(
+                            height: 1.75,
+                            fontSize: 14,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-            ),
+              custom_text.Text.rich(
+                primary: colorScheme.primary,
+                style: const TextStyle(height: 1.75, fontSize: 14),
+                maxLines: widget.replyLevel == 1
+                    ? ReplyItemGrpc.replyLengthLimit
+                    : null,
+                TextSpan(
+                  children: [
+                    if (replyControl.isUpTop) ...[
+                      const WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: PBadge(
+                          text: 'TOP',
+                          size: PBadgeSize.small,
+                          isStack: false,
+                          type: PBadgeType.line_primary,
+                          fontSize: 9,
+                          textScaleFactor: 1,
+                        ),
+                      ),
+                      const TextSpan(text: ' '),
+                    ],
+                    _buildMessage(
+                      context,
+                      colorScheme,
+                      widget.replyItem.content,
+                      replyControl,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
         if (widget.replyItem.content.pictures.isNotEmpty) ...[
@@ -504,72 +589,6 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
         ),
         _buildContent(context, theme.colorScheme),
       ],
-    );
-  }
-
-  Widget _buildTranslateBtn(
-    BuildContext context,
-    ColorScheme colorScheme,
-    ReplyControl replyControl,
-    TextStyle textStyle,
-    ButtonStyle buttonStyle,
-  ) {
-    late bool isProcessing = false;
-    final color = replyControl.showTranslation
-        ? colorScheme.primary
-        : colorScheme.outline.withValues(alpha: 0.8);
-    return SizedBox(
-      height: 32,
-      child: TextButton(
-        style: buttonStyle,
-        onPressed: () async {
-          if (replyControl.showTranslation) {
-            replyControl.showTranslation = false;
-            (context as Element).markNeedsBuild();
-          } else {
-            if (isProcessing) {
-              return;
-            }
-            if (widget.replyItem.hasTranslatedContent()) {
-              replyControl.showTranslation = true;
-              (context as Element).markNeedsBuild();
-              return;
-            }
-            isProcessing = true;
-            final res = await ReplyGrpc.translateReply(
-              type: widget.replyItem.type,
-              oid: widget.replyItem.oid,
-              rpid: widget.replyItem.id,
-            );
-            if (res case Success(:final response)) {
-              final item = response.translatedReplies[widget.replyItem.id];
-              if (item != null && item.hasTranslatedContent()) {
-                replyControl.showTranslation = true;
-                widget.replyItem.translatedContent = item.translatedContent;
-                if (context.mounted) {
-                  (context as Element).markNeedsBuild();
-                }
-              } else {
-                SmartDialog.showToast('翻译结果为空');
-              }
-            } else if (res case Error(:final errMsg)) {
-              SmartDialog.showToast('翻译失败: $errMsg');
-            }
-            isProcessing = false;
-          }
-        },
-        child: Row(
-          spacing: 3,
-          mainAxisSize: .min,
-          children: [
-            Icon(Icons.translate, size: 16, color: color),
-            Text(
-              replyControl.showTranslation ? '原文' : '翻译',
-              style: textStyle.copyWith(color: color),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -639,15 +658,59 @@ class _ReplyItemGrpcState extends State<ReplyItemGrpc> {
           ),
         ),
         const SizedBox(width: 2),
-        if (replyControl.translationSwitch ==
-            .TRANSLATION_SWITCH_SHOW_TRANSLATION) ...[
-          _buildTranslateBtn(
-            context,
-            colorScheme,
-            replyControl,
-            textStyle,
-            buttonStyle,
-          ),
+        if (widget.onTranslate != null &&
+            Pref.enableCommentTranslate &&
+            replyControl.translationSwitch ==
+                .TRANSLATION_SWITCH_SHOW_TRANSLATION) ...[
+          if (widget.isTranslating)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '翻译中',
+                    style: textStyle.copyWith(color: colorScheme.primary),
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 32,
+              child: TextButton(
+                style: buttonStyle,
+                onPressed: widget.onTranslate,
+                child: Row(
+                  spacing: 3,
+                  mainAxisSize: .min,
+                  children: [
+                    Icon(
+                      Icons.translate,
+                      size: 17,
+                      color: widget.translatedText != null
+                          ? colorScheme.primary
+                          : colorScheme.outline.withValues(alpha: 0.8),
+                    ),
+                    Text(
+                      widget.translatedText == null ? '翻译' : '原文',
+                      style: widget.translatedText != null
+                          ? textStyle.copyWith(color: colorScheme.primary)
+                          : textStyle,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           const SizedBox(width: 2),
         ] else if (replyControl.cardLabels.isNotEmpty) ...[
           Text(

@@ -1056,7 +1056,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/grpc/reply.dart`, `lib/pages/video/reply/widgets/reply_item_grpc.dart`, `lib/pages/setting/models/block_filter_settings.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 15. 评论翻译横幅 + 评论申诉
+- [x] 15. 评论翻译横幅 + 评论申诉
 
   **What to do**:
   - 按需重写 `lib/pages/video/reply/controller.dart`：`translatedReplies` RxMap + `translateReply(ReplyInfo)`（参照 A 横幅式）

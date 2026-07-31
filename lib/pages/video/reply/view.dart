@@ -127,7 +127,11 @@ class _VideoReplyPanelState extends State<VideoReplyPanel>
                     }),
                   ),
                 ),
-                Obx(() => _buildBody(_videoReplyController.loadingState.value)),
+                Obx(() {
+                  // trigger rebuild when translation state changes
+                  _videoReplyController.translatedReplies.length;
+                  return _buildBody(_videoReplyController.loadingState.value);
+                }),
               ],
             ),
             Positioned(
@@ -206,8 +210,12 @@ class _VideoReplyPanelState extends State<VideoReplyPanel>
                   ),
                 );
               } else {
+                final replyItem = response[index];
+                final rpid = replyItem.id;
+                final translated =
+                    _videoReplyController.translatedReplies[rpid];
                 return ReplyItemGrpc(
-                  replyItem: response[index],
+                  replyItem: replyItem,
                   replyLevel: widget.replyLevel,
                   replyReply: replyReply,
                   onReply: _videoReplyController.onReply,
@@ -223,6 +231,12 @@ class _VideoReplyPanelState extends State<VideoReplyPanel>
                     _videoReplyController.aid,
                     _videoReplyController.videoType.replyType,
                   ),
+                  translatedText: translated != null && translated.isNotEmpty
+                      ? translated
+                      : null,
+                  isTranslating: translated != null && translated.isEmpty,
+                  onTranslate: () =>
+                      _videoReplyController.translateReply(replyItem),
                 );
               }
             },

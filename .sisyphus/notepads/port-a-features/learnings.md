@@ -140,3 +140,14 @@ equired String apiUrl 不破坏其他调用点。
 - **PowerShell 陷阱**：``print('RESULT: $(_passed)...')`` 的 ``$(...)`` 在双引号 here-string 里被求值，必须用单引号 here-string 写含 ``$()`` 的文本；``SettingBoxKey`` 无 blackMids（在 ``LocalCacheKey``）。
 - **analyze 计数**：146 → **116**（−30），三测试文件清零（block_reason 23/blocked_filter 6/banner 3），改动文件 0 error 0 warning，总 warning 无新增。
 - **``flutter test`` 会改 pubspec.lock（pub 镜像 URL 重写 pub.flutter-io.cn→pub.dev）**——验证后需 ``git checkout -- pubspec.lock`` 恢复，保持 diff 干净。
+
+## [2026-08-01] Task: T15（评论翻译横幅 + 站内评论申诉）
+- **B 的 TranslateReplyResp 双定义**：`grpc/reply_translate.dart`（手写，SAME）与 `grpc/bilibili/**/v1.pb.dart:14093`（生成，B 重新生成过）都定义 TranslateReplyResp；B 的 grpc/reply.dart 不 import reply_translate.dart（避免冲突），返回类型解析自 v1.pb.dart。controller 只用模式匹配 `Success(:final response)` + `response.translatedReplies[rpid]`，不 import reply_translate.dart 也不会歧义。
+- **B 的 translateReply 签名是单条** `{required Int64 type, required Int64 oid, required Int64 rpid}`（T14 保留），controller.translateReply 直接按此调用，与 A 的 `rpids: List<int>` 批量签名不同——无需强改。
+- **`DefaultCookieJar.toJson()` 来自 account.dart 的 `BiliCookieJar` extension**（account.dart:348）——删掉 `import .../accounts/account.dart` 后 reply_utils 立刻 undefined_method（新 error）。extension 方法计入 import 使用，恢复 import 无 unused 警告。删 import 前先 grep 依赖它的 extension。
+- **移除内联 `_buildTranslateBtn` 后 http/loading_state.dart import 变孤儿**（该文件曾用 `Success` 模式匹配）——改为 param 式翻译后 `res case Success` 移入 controller，widget 不再需要。检查被删函数独占的 import 是否成了孤儿。
+- **view.dart 是翻译功能必需接线点**（brief 未列但必须改）：`onTranslate`/`translatedText`/`isTranslating` 全靠消费方传入；`onTranslate == null` 时 buttonAction 回退 cardLabels 分支（不显示翻译按钮）。功能接线改动属任务核心而非范围蔓延。
+- **B 的 ReplyHttp.replyReplyList 无 `account:` 参数**（isLogin:true 内部走 Accounts.main）——A 状态机的 `account: Accounts.reply` 调用点在 B 直接省略。
+- **模型已支持 8 状态机**：ReplyItemModel.rpid/invisible、ReplyReplyData.replies/root、ReplyRoot.invisible 全在，无需补模型。
+- **analyze 116 保持**（T14 基线）：6 改动文件 0 error 0 warning。中间 117 因 account.dart import 丢失，116 因 loading_state.dart 孤儿 import 修正（1 上 1 下回平）。
+- **test/ 无 appealComment/translateReply RED 引用**（仅 reply_translate_test 引 pb 层 map，与功能无关）——本任务无测试转绿负担。
