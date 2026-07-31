@@ -299,3 +299,12 @@ otification.metrics.axisDirection == .down 是 AxisDirection.down，不是 Scrol
 6. **「打开」替代实现**：content_panel.dart:122 + reply_item_grpc.dart:1716，用 EditableTextState.textEditingValue 公共 API，A 原版 selectable_region_ext 未移植（T4 决策正确）。
 7. **videoPush/hideStatusBar/FAB/下载过滤/设置项** 作为补充锚点全部有消费点，无孤儿。
 8. **runtime-pending 8 项**（Stein/播放器/直播/快速分享/图片屏蔽/「打开」菜单/续播/无痕空降）按 batch0-smoke-plan §三 如实标注。
+
+## [2026-08-01] Task: T30（全量 analyze + hap 构建验证）
+- **analyze 23 errors 精确匹配基线**：6 vendored（editable_text 3 + vertical_slider 3）+ 17 test RED（connectivity_utils 7 + android_helper 6 + platform_utils 4），全项目 0 新增、无非基线 lib/ 错误。PowerShell 计数法：`dart analyze --no-fatal-warnings 2>&1 | Select-String -Pattern "^\s*error - "` 后按 `[1] -replace ':\d+:\d+$',''` 提取文件聚合。
+- **本机双 Flutter 并存**：全局 `D:\Program\Flutter\flutter` = 标准 3.44.4（`flutter build --help` 只有 apk，无 hap target）；`D:\Program\Flutter\flutter-ohos` = **3.41.10-ohos-0.0.2-beta**（支持 hap target，与 B 声明的 CI oh-3.41.9-release 同族）。跑 hap 必须显式 `& "D:\Program\Flutter\flutter-ohos\bin\flutter.bat"`。
+- **hap 构建环境硬缺项 = HOS SDK**：ohos flutter 的 build/analyze 都在 **pub get 之后、Dart 编译之前** 死在 `[!] No Hmos SDK found. Try setting the HOS_SDK_HOME environment variable.` ——本机无 DevEco Studio/hdc/HOS_SDK_HOME，这是纯环境缺口，**不是代码错误**（编译阶段根本没到）。判断"环境 vs 代码"：pub get 成功(231 deps 全解析) + 失败点在 SDK 发现 + analyze 0 非基线错误 三信号齐备即可下结论。
+- **ohos flutter pub get 会重写 pubspec.lock**（280+/264- 漂移，镜像 URL + 重解析）——跑完必须 `git checkout -- pubspec.lock` 恢复（T14/T27 gotcha 第三次复现）。前置检查通过：ohos/build-profile.json5 存在（signingConfigs []，SDK 5.0.3(15)）+ .vscode/env.json 206B。
+- **git override 计数修正（T32 延续）**：34 个 `git:` 键 = dependencies 区 17（get/extended_nested_scroll_view/.../super_sliver_list）+ dependency_overrides 区 17；pubspec 在移植范围内唯一改动 = T20 的 visibility_detector +1 行。agures "~37 overrides" 是含 github fork 的宽松数。
+- **Guardrails 复核**：SelectionText( 全库命中仅定义文件 selection_text.dart:4（init 遗留）+ pb 生成 + 框架副本，移植文件 0；text_selection.dart:2921/3044 注释逐行完好；git log 近 10 commit 对 *.g.dart/*.pb*/GeneratedPluginRegistrant/bindings.g.dart 0 触碰。
+- **警告基线 39**：全 pre-existing（vendored unreachable_switch/undefined_hidden_name、A-verbatim ai_conclusion/video/view、孤儿 part unused_import、identity_generators 5 unused_field、theme_utils 4、test RED 14）——无移植引入的 warning。验收只看 error 级（--no-fatal-warnings 不 gate warning/info）。

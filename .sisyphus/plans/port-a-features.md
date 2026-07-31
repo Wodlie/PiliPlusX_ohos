@@ -1923,7 +1923,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
 
 ### Batch 5 — 验证收尾（依赖 Batch 4；4 任务并行）
 
-- [ ] 30. 全量 dart analyze + flutter build hap
+- [x] 30. 全量 dart analyze + flutter build hap
 
   **What to do**:
   - 运行 `dart analyze --no-fatal-warnings` 全项目，修复所有 error（warning 按项目现有标准容忍）
