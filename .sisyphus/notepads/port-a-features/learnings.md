@@ -308,3 +308,39 @@ otification.metrics.axisDirection == .down 是 AxisDirection.down，不是 Scrol
 - **git override 计数修正（T32 延续）**：34 个 `git:` 键 = dependencies 区 17（get/extended_nested_scroll_view/.../super_sliver_list）+ dependency_overrides 区 17；pubspec 在移植范围内唯一改动 = T20 的 visibility_detector +1 行。agures "~37 overrides" 是含 github fork 的宽松数。
 - **Guardrails 复核**：SelectionText( 全库命中仅定义文件 selection_text.dart:4（init 遗留）+ pb 生成 + 框架副本，移植文件 0；text_selection.dart:2921/3044 注释逐行完好；git log 近 10 commit 对 *.g.dart/*.pb*/GeneratedPluginRegistrant/bindings.g.dart 0 触碰。
 - **警告基线 39**：全 pre-existing（vendored unreachable_switch/undefined_hidden_name、A-verbatim ai_conclusion/video/view、孤儿 part unused_import、identity_generators 5 unused_field、theme_utils 4、test RED 14）——无移植引入的 warning。验收只看 error 级（--no-fatal-warnings 不 gate warning/info）。
+## [2026-08-01 02:09] Task: F1 — Plan Compliance Audit
+
+**VERDICT: APPROVE** — Must Have 19/19 | Must NOT Have 7/7 | Evidence 33/33
+
+### Key Findings
+- All 19 feature families independently re-verified by grep/read against HEAD (not trusting prior evidence). Every symbol has real consumption points.
+- All 7 guardrails independently re-verified by git diff. Zero violations: no SelectionText restoration, no desktop branches, text_selection comments intact, 4 鸿蒙待适配 TODOs unchanged, 0 protected files touched, pubspec only added visibility_detector, SDK pinned at 3.41.9.
+- setAccountUname lives in login_utils.dart + mine/controller.dart (not login/controller.dart as plan Task 29 literally stated — functionally equivalent, nickname cache written on login success).
+- "无痕空降" (Task 29) maps to `suppressSponsorBlockIncognito` Pref + `MineController.anonymity.value` gate in block_mixin.dart — same feature, different naming than plan's `Pref.incognitoMode`.
+- ast_grep does NOT support Dart language — used grep + git diff instead for guardrail verification.
+
+### Evidence
+- Output: `.sisyphus/evidence/f1-compliance.md`
+
+## [2026-08-01] Task: F3 (Final Wave — Real Manual QA)
+- **三 harness 仍可直接重跑**：hive_migration_verify（31/31）、t9_harness（56/56）、t14_reply_harness（72/72）全部在 temp 存活且无依赖漂移；t9/t14 的 lib 副本与仓库字节一致（grpc_headers.dart/reply.dart hash 相同），hive 仅 import 路径差异（Compare-Object 证实非迁移逻辑行）。F3 无需新造 harness。
+- **analyze 23→18 的环境归因（重要，防止误判回归）**：Batch5 时 package_config 解析标准 SDK 3.44.4 → 6 个 vendored 假象错误（ExtendSelectionByPageIntent/TargetPlatform.ohos 未定义）；8/1 02:04 package_config 重新生成解析 OHOS SDK（3.41.10-ohos）→ 这 6 个消失，但 platform_shortcuts.dart 的 `switch(defaultTargetPlatform)` 缺 .ohos 分支现出 1 个 non_exhaustive_switch（init 遗留，运行时 OS.isHarmony 提前返回不触达）。17 个 test RED 逐项不变。**判断"基线等价"要看错误构成而非总数**。
+- **Dart List == 陷阱**：`[a,b].map(e=>e.index).toList() == [0,1,2,3]` 是身份比较必 false，AccountType 断言首跑 1 FAIL 为脚本 bug，改逐元素比较后 5/5 PASS。写 Dart 断言用元素循环或 listEquals。
+- **跨功能链路复核方法**：5 条链路（账号→评论→翻译、设置→消费、续播→播放页、无痕→SponsorBlock、Stein→showStein）全部用"源头定义 + 中间接线 + 消费点"三点 grep，命中即链路闭合；T31 已做单功能 19/19，F3 补端到端。
+- **runtime-pending 核对映射**：batch5-smoke 15 项 = batch0-smoke-plan §三 12 项 + F17（「打开」菜单）/F19（设置交互）/T29（无痕空降）3 项细分；复核时应逐项给出 1:1 映射表。
+- **VERDICT: APPROVE**（证据：.sisyphus/evidence/f3-qa.md）
+
+## [2026-08-01] Task: F2 (Final Wave — Code Quality Review)
+- **analyze 构成比总数重要（复核确认）**：本次 18 error = 1 vendored platform_shortcuts (init 遗留 non_exhaustive_switch) + 17 test RED；Batch5 23 error 是 package_config 解析差异（6 vendored 假象），构成等价、17 test 逐项不变。判断回归看构成。
+- **新增空 catch 仅 2 处且均 A-verbatim**：bilibili_subtitle_summary_adapter:162（JSON 多候选 try 循环，跳过非法候选）+ init.dart:105（T10 buvidActive 重试，带注释）。其余所有新增 catch 都有 toast/debugPrint/return Error 处理体。
+- **custom_host_interceptor 比 A 干净**：A 的 29 行 reverse-engineering 调查注释被 B 裁掉（94→65 行）——移植时可顺手删 A 的 slop 注释，不算背离。
+- **T27 selectable_region 处理方式**：整体删除文件（含 A 的 as-dynamic 坏代码），不在 B 重建；extension_test.dart 注释记录原因。验证残留用 grep 'as dynamic' + 文件存在性。
+- **移植文件 warning 复核法**：从 analyze 输出提取 warning 文件列表，与 git diff --name-only 做交集 → 只交集出 ai_conclusion（unreachable_switch_case）+ video/view（unnecessary_null_comparison），两者均 A 原样。
+- **VERDICT: APPROVE**（证据：.sisyphus/evidence/f2-quality.md）
+
+## [2026-08-01] Task: F4 — Scope Fidelity Check
+- **VERDICT: APPROVE** (Tasks 25/25 compliant | Contamination CLEAN | Unaccounted 4 files doc-only).
+- Commit boundaries ≠ logical task boundaries: T16 commit included video.dart relationMod identity wiring (in-scope, issues.md had flagged the fp semantic bug); batch3 commit aggregated T18/20/21/22/23; batch4 aggregated T24-29. Judge scope by content, not commit message alone.
+- request_utils.dart was NOT modified for T22 — pmShare pre-existed at baseline (T3 audit). Absence from diff is evidence of reuse, not a miss.
+- All 4 small dyn-page callers (article/match_info/music/dynamics_detail) changed only via fabAnimWrapper(child:) signature adaptation — T24 FAB refactor collateral.
+- The 4 lib AGENTS.md refreshes are the only unaccounted-but-benign docs; all code maps to a task.

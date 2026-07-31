@@ -2130,19 +2130,19 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
 > 4 个审查 agent 并行运行。全部 APPROVE 后向用户呈现汇总，**等用户明确确认**后才完成。
 > 未获用户确认前，不得将 F1-F4 标记为完成。
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   逐任务核对：19 功能族的 "Must Have" 是否全部实现（读文件 + grep 符号）；"Must NOT Have"（Guardrails）是否全部遵守（ast_grep + git diff 搜索违禁模式）。检查 evidence 文件存在。
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   运行 `dart analyze --no-fatal-warnings` + 审查改动文件：无 `as any`/`@ts-ignore`（Dart 为 `dynamic`/`// ignore`）、无空 catch、无 release print、无注释代码恢复、无未用 import。检查 AI slop：过度注释、过度抽象、通用命名。
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   从干净状态执行可执行 QA 场景（迁移测试、analyze、符号接线、冒烟脚本）。逐任务执行 QA 场景并捕获证据。对 runtime-pending 项标注"待真机"。测试跨功能交互（账号切换→屏蔽→翻译链路）。
   Output: `Scenarios [N/N pass] | Integration [N/N] | Runtime-pending [N 项] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   逐任务读 "What to do" + 读实际 git diff。验证 1:1：规格内全部实现、规格外无新增（无桌面分支、无 log/catch 移植、无无关重构）。检查跨任务污染（Task N 碰 Task M 文件）。标记未记录的改动。
   Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
