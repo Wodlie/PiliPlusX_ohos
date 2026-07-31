@@ -42,3 +42,13 @@
 - 消费点全部 index-generic（`values.length` 循环、`values[i]`、`firstWhere orElse: main`），6 值天然兼容；唯一需要改 UI 的是 privacy_settings.dart（A 版显示 title+desc+URL 列表并包 SelectionArea）。
 - A 的 `http/video.dart:108 _accountTypeForRelationAct`（5||6→blacklist）在 B 不存在——属 T9 范围，T5 不补。
 - `dart analyze` 总数（含 info）≠ error 数；基线 276 errors / 0 warnings，验收按 error 数对比。错误全部集中在 10 个孤儿 part/已知 RED 文件 + test/，改动文件 0 错误即达标。
+
+## [2026-07-31] Task: T6（4→6 Hive 迁移 + 迁移测试）
+- **本地 flutter test 编译阻塞确认（实证）**：任何 `import 'package:PiliPlus/utils/accounts/account.dart'` 的测试在本机 Flutter 3.44.4 都编译不过——传递链 `account.dart → accounts.dart → http/init.dart + pages/mine/controller.dart` 拉到 (1) B vendored 3.32.4-ohos 框架补丁（editable_text.dart 引用 `ExtendSelectionByPageIntent`，仅 OHOS 引擎有）(2) font_awesome_flutter-10.9.0（3.44.4 的 IconData 是 final class，扩展报错）(3) flutter_audio_session/flutter_inappwebview git fork 引用 `ohos` 平台成员。`flutter test test/smoke_test.dart` 可跑（只 import flutter_test）证明是依赖图问题不是 harness 问题。**只有 OHOS 3.41.9 SDK 环境（CI）能跑**。
+- **纯 Dart 验证 harness 模式（可复用）**：在 temp 目录建独立 pubspec（hive_ce 2.19.3 + cookie_jar 4.0.9 + crypto 3.0.7），**真实复制**待验证文件 + 用 import 重写指向本地 stub，仅 stub 无关重依赖（Accounts/GrpcHeaders/Pref/IdUtils/Constants 5 个）。`dart run bin/verify.dart` 31 checks 全 PASS。这验证了真实 account.dart/account_adapter/account_migration 逻辑（仅 import 路径不同）。
+- **PowerShell 陷阱**：`Re` 函数里 `@(@("a","b"),@("c","d"))` 嵌套数组被展平为字符串数组，`$p[0]`/`$p[1]` 变成字符下标 → 全局 `Replace('p','a')` 把 import 全弄坏。**修法**：用 `@{from=...; to=...}` hashtable 数组 + `[System.IO.File]::ReadAllText/WriteAllText`（UTF8 无 BOM），再跑一遍正常。
+- **方案 A seed 语义（重要设计确认）**：cookie buvid3（`[0-9A-F]{32}\d{5}infoc`）**不通过** `validateBuvid`（要求 `X[A-Z][0-9A-F]{35}`）——所以 `restored` 每次读它都会"再生成"（source=generated，needsBuvidPersist=true），disk 值只有靠 **每次启动都跑的 GStorage.init 迁移钩子** 保持为 cookie buvid3。F2 测试证明值稳定（重开+再迁移仍回填同一 buvid3）。这是有意为之：方案 A 优先线上头不漂移，代价是每次 boot 有瞬时再生成。若未来要跨启动真幂等，得把 seed 改成 `deriveBuvidFromSeed(cookieBuvid3)`（validator 合法），但那会让线上 buvid 从 buvid3 变为派生值。
+- **`restored` 工厂读回缺 buvid3 记录**：`LoginAccount._` 私有构造器体内 `cookieJar.setBuvid3()` 会把缺 buvid3 的 jar 补上 fresh buvid3 → `_resolveBuvid` 的 legacy-buvid 回退分支在正常流程不可达（decoded 对象 jar 必有 buvid3）。测试按实际行为断言（现场生成 seed）。
+- **`.gitignore:152 test*` 过宽**：目录 `test/` 命中 `test*`，新测试文件被忽略；既有测试为规则前已跟踪。提交需 `git add -f test/hive_migration_test.dart`。
+- **RED 契约进度**：identity_migration_test 21→3 errors（剩 request_identity_adapter/RequestIdentityAdapter/debugSetAppSupportDirPath，全 T8）；buvid_lifecycle 剩 13（T7 的 Accounts.mainIdentity/snapshot + T8 的 LoginHttp.appHeaders/createLoginSessionIdentity）；T6 符号全已提供。
+- **`const AppDeviceProfile(...)` 不存在**：公共构造器是 factory，测试里要用普通构造。

@@ -6,7 +6,9 @@ import 'package:PiliPlus/models/user/danmaku_rule_adapter.dart';
 import 'package:PiliPlus/models/user/info.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account_adapter.dart';
+import 'package:PiliPlus/utils/accounts/account_migration.dart';
 import 'package:PiliPlus/utils/accounts/account_type_adapter.dart';
+import 'package:PiliPlus/utils/accounts/app_device_profile.dart';
 import 'package:PiliPlus/utils/accounts/cookie_jar_adapter.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/set_int_adapter.dart';
@@ -75,6 +77,11 @@ abstract final class GStorage {
     } else {
       reply = null;
     }
+
+    // 4→6 schema 迁移：Accounts.init()（Future.wait 内）已打开 account box，
+    // 新 6 字段 adapter 可正常解码旧 4 字段记录（field4/5 为 null），这里回填
+    // buvid（cookie buvid3 seed）/deviceProfile。幂等，空 box 为 no-op。
+    await migrateAccountBoxV4ToV6(Accounts.account);
   }
 
   static String exportAllSettings() {
@@ -102,6 +109,7 @@ abstract final class GStorage {
       ..registerAdapter(UserInfoDataAdapter())
       ..registerAdapter(LevelInfoAdapter())
       ..registerAdapter(BiliCookieJarAdapter())
+      ..registerAdapter(AppDeviceProfileAdapter())
       ..registerAdapter(LoginAccountAdapter())
       ..registerAdapter(AccountTypeAdapter())
       ..registerAdapter(SetIntAdapter())

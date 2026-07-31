@@ -1,7 +1,10 @@
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/accounts/app_device_profile.dart';
 import 'package:PiliPlus/utils/accounts/grpc_headers.dart';
+import 'package:PiliPlus/utils/accounts/identity_core.dart';
+import 'package:PiliPlus/utils/accounts/identity_persistence.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:cookie_jar/cookie_jar.dart';
@@ -59,20 +62,18 @@ class LoginAccount extends Account {
   @override
   @HiveField(3)
   final Set<AccountType> type;
-
   @override
-  late final String buvid = _resolveBuvid();
+  @HiveField(4)
+  final String buvid;
+  @HiveField(5)
+  final AppDeviceProfile? deviceProfile;
 
-  /// 从 cookie 中解析 BUVID：优先 buvid3，回退到 buvid（旧字段）。
-  String _resolveBuvid() {
-    final cookies = cookieJar.domainCookies['bilibili.com']?['/'];
-    final buvid3 = cookies?['buvid3']?.cookie.value;
-    if (buvid3 != null && buvid3.isNotEmpty) return buvid3;
-    final legacy = cookies?['buvid']?.cookie.value;
-    if (legacy != null && legacy.isNotEmpty) return legacy;
-    cookieJar.setBuvid3();
-    return cookieJar.domainCookies['bilibili.com']!['/']!['buvid3']!.cookie.value;
-  }
+  /// Whether this account's BUVID was auto-generated because the stored Hive
+  /// record lacked field 4 (old accounts created before per-account BUVID).
+  /// When true, [Accounts.refresh] will persist this account back so the
+  /// generated BUVID is durably saved.
+  final bool _needsBuvidPersist;
+  bool get needsBuvidPersist => _needsBuvidPersist || deviceProfile == null;
 
   @override
   bool activated = false;
@@ -107,7 +108,7 @@ class LoginAccount extends Account {
   @override
   Future<void> onChange() {
     assert(!_hasDelete);
-    return _box.put(_midStr, this);
+    return _box.put(_midStr, _persistedAccount);
   }
 
   @override
@@ -116,30 +117,146 @@ class LoginAccount extends Account {
     'accessKey': accessKey,
     'refresh': refresh,
     'type': type.map((i) => i.index).toList(),
+    'buvid': buvid,
+    if (deviceProfile != null) 'deviceProfile': deviceProfile!.toJson(),
   };
 
-  late final String _midStr = cookieJar
-      .domainCookies['bilibili.com']!['/']!['DedeUserID']!
-      .cookie
-      .value;
+  final String _midStr;
 
   late final Box<LoginAccount> _box = Accounts.account;
 
-  LoginAccount(
+  factory LoginAccount(
+    DefaultCookieJar cookieJar,
+    String? accessKey,
+    String? refresh, [
+    Set<AccountType>? type,
+    String? buvid,
+    AppDeviceProfile? deviceProfile,
+  ]) {
+    return LoginAccount._resolve(
+      cookieJar,
+      accessKey,
+      refresh,
+      type: type,
+      buvid: buvid,
+      deviceProfile: deviceProfile,
+      persistResolvedDeviceProfile: true,
+    );
+  }
+
+  factory LoginAccount.restored(
+    DefaultCookieJar cookieJar,
+    String? accessKey,
+    String? refresh, [
+    Set<AccountType>? type,
+    String? buvid,
+    AppDeviceProfile? deviceProfile,
+  ]) {
+    return LoginAccount._resolve(
+      cookieJar,
+      accessKey,
+      refresh,
+      type: type,
+      buvid: buvid,
+      deviceProfile: deviceProfile,
+      persistResolvedDeviceProfile: false,
+    );
+  }
+
+  factory LoginAccount._resolve(
+    DefaultCookieJar cookieJar,
+    String? accessKey,
+    String? refresh, {
+    Set<AccountType>? type,
+    String? buvid,
+    required AppDeviceProfile? deviceProfile,
+    required bool persistResolvedDeviceProfile,
+  }) {
+    final resolved = _resolveLoginAccountIdentity(cookieJar, buvid);
+    final resolvedDeviceProfile =
+        deviceProfile ??
+        (persistResolvedDeviceProfile
+            ? AppDeviceProfiles.defaultDeviceProfileForOwner(
+                resolved.resolution.profile.owner.key,
+              )
+            : null);
+    return LoginAccount._(
+      cookieJar,
+      accessKey,
+      refresh,
+      type ?? {},
+      resolved.midStr,
+      resolved.resolution.profile.buvid,
+      resolvedDeviceProfile,
+      resolved.resolution.source == IdentityPersistenceSource.generated ||
+          resolved.resolution.source == IdentityPersistenceSource.legacy,
+    );
+  }
+
+  LoginAccount._(
     this.cookieJar,
     this.accessKey,
-    this.refresh, [
-    Set<AccountType>? type,
-  ]) : type = type ?? {} {
+    this.refresh,
+    this.type,
+    this._midStr,
+    this.buvid,
+    this.deviceProfile,
+    this._needsBuvidPersist,
+  ) {
     cookieJar.setBuvid3();
   }
 
-  factory LoginAccount.fromJson(Map json) => LoginAccount(
+  factory LoginAccount.fromJson(Map json) => LoginAccount.restored(
     BiliCookieJar.fromJson(json['cookies']),
     json['accessKey'],
     json['refresh'],
     (json['type'] as Iterable?)?.map((i) => AccountType.values[i]).toSet(),
+    json['buvid'],
+    switch (json['deviceProfile']) {
+      final Map deviceProfile => AppDeviceProfile.fromJson(deviceProfile),
+      _ => null,
+    },
   );
+
+  LoginAccount get _persistedAccount => deviceProfile == null
+      ? LoginAccount._(
+          cookieJar,
+          accessKey,
+          refresh,
+          {...type},
+          _midStr,
+          buvid,
+          AppDeviceProfiles.defaultDeviceProfileForOwner('account:$mid'),
+          false,
+        )
+      : this;
+
+  /// 从 cookie 中解析 BUVID：优先 buvid3，回退到 buvid（旧字段）。
+  String _resolveBuvid() {
+    final cookies = cookieJar.domainCookies['bilibili.com']?['/'];
+    final buvid3 = cookies?['buvid3']?.cookie.value;
+    if (buvid3 != null && buvid3.isNotEmpty) return buvid3;
+    final legacy = cookies?['buvid']?.cookie.value;
+    if (legacy != null && legacy.isNotEmpty) return legacy;
+    cookieJar.setBuvid3();
+    return cookieJar.domainCookies['bilibili.com']!['/']!['buvid3']!.cookie.value;
+  }
+
+  /// 4→6 迁移回填副本：field4 种子 = 账号 cookie 的 buvid3（保持升级前后
+  /// 线上 `buvid:` 头逐字节不变），field5 = 确定性设备档案。
+  /// 写完 [_needsBuvidPersist] 为 false，重复执行迁移即为 no-op（幂等）。
+  LoginAccount seededMigrationCopy() {
+    return LoginAccount._(
+      cookieJar,
+      accessKey,
+      refresh,
+      {...type},
+      _midStr,
+      _resolveBuvid(),
+      AppDeviceProfiles.defaultDeviceProfileForOwner('account:$mid'),
+      false,
+    );
+  }
 
   @override
   int get hashCode => mid.hashCode;
@@ -194,6 +311,27 @@ class AnonymousAccount extends Account {
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is AnonymousAccount && cookieJar == other.cookieJar);
+}
+
+({
+  String midStr,
+  IdentityPersistenceResolution resolution,
+})
+_resolveLoginAccountIdentity(
+  DefaultCookieJar cookieJar,
+  String? storedBuvid,
+) {
+  final midStr = cookieJar
+      .domainCookies['bilibili.com']!['/']!['DedeUserID']!
+      .cookie
+      .value;
+  return (
+    midStr: midStr,
+    resolution: OwnerScopedIdentityPersistence.resolve(
+      owner: IdentityOwnerKey.account(int.parse(midStr)),
+      storedBuvid: storedBuvid,
+    ),
+  );
 }
 
 extension BiliCookie on Cookie {

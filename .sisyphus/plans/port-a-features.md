@@ -470,7 +470,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/models/common/account_type.dart`, `lib/utils/accounts/api_type.dart`（及相关消费点）
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 6. Hive 持久化扩展（field 4/5）+ 4→6 迁移 + 迁移测试（最高优先级）
+- [x] 6. Hive 持久化扩展（field 4/5）+ 4→6 迁移 + 迁移测试（最高优先级）
 
   **What to do**:
   - 按需重写 `lib/utils/accounts/account_adapter.dart`：读写 6 字段（新增 field 4 buvid、field 5 deviceProfile，参照 A）
