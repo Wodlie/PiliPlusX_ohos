@@ -791,7 +791,7 @@ Critical Path: Task 1-4 → 5-8 → 9-11 → 12-29 → 30-33 → F1-F4 → user 
   - Files: `lib/http/init.dart`, `lib/utils/accounts/account.dart`, `lib/utils/login_utils.dart`, `lib/pages/mine/controller.dart`
   - Pre-commit: `dart analyze --no-fatal-warnings`
 
-- [ ] 11. CustomHostInterceptor + HkApiRetryInterceptor + api_host_page 入口
+- [x] 11. CustomHostInterceptor + HkApiRetryInterceptor + api_host_page 入口
 
   **What to do**:
   - 新建 `lib/http/custom_host_interceptor.dart`（参照 A，ONLY_A）：自定义 API Host 重写拦截器

@@ -91,3 +91,13 @@
 - **mine/controller.dart 的 queryUserInfo 也写 setAccountUname**（A mine controller:107 对齐）——写入方共 2 处：login_utils.onLoginMain + mine.queryUserInfo；读取方 storage_pref.getAccountDisplayName。
 - **analyze 基线 181 errors 保持**（B T9 后基线）；37 warnings 全 pre-existing（vendored 引擎 unreachable_switch/undefined_hidden_name、孤儿 part unused_import、test/ RED unused_import、buvid_lifecycle_test:11 已知 unused import）。
 - **T7 的 delete() 确认无缺口**：Future.wait([cookieJar.deleteAll(), Pref.deleteGuestBuvid()]).whenComplete(setBuvid3) + fawkes hack，本任务未动 account.dart。
+
+## [2026-07-31] Task: T11（CustomHost/HkApi 拦截器 + api_host_page 入口）
+- **B 的 `api_hosts.dart` 与 A 逐字节同构**（apiHostEntries 12 项全同）——两个拦截器可直接消费，无需同步；B 的 storage_pref 已有 enableCustomApiHost/apiHKUrl/customAppBaseUrl 死键（T2 已发现），本任务接上消费方。
+- **CustomHost/HkApi 两拦截器按 A 重写零改动可编译**（deps 全在：api_hosts/storage/storage_pref/constants/init/flutter_smart_dialog），只是 A 版的 Investigation Findings 长注释不保留（AGENTS 无注释约定 + 行号引用漂移）。
+- **接入点 = RetryInterceptor 块后、LogInterceptor 块前**（B init.dart:236-257）——test/http/init_test.dart 断言链序 Retry < CustomHost < HkApi < Log，B 现有 AccountManager 是 setCookie 时追加（链尾），与测试无关。
+- **B 的 extra_settings.dart 末尾（检查更新后）是加入口的正确位置**：B 版无 A 的"设置港澳台代理"+"自定义 API 主机"两项；因 B 的 ApiHostPage 内嵌开关，只加单个 NormalModel `Get.toNamed('/apiHostSetting')` 导航即可（不复制 A 的 SwitchModel+NormalModel 双项）。
+- **A 的 grpc_req.dart:62-65 的 customAppBaseUrl 三元判断是唯一差异**，B 架构（gRPC-over-HTTP 走 Request().post）完全支持，按 A 补即可，无需重构传输层。
+- **hk_api_retry_interceptor 固有 2 条 info lint**（avoid_void_async:9 onResponse、unnecessary_await_in_return:71）——dio onResponse 签名是 void 但要 await 重试，A 原实现同款；info 级不阻塞 gate。
+- **analyze 181 → 163（−18）**：恰为 init_test.dart 的 18 个 undefined 错误转绿；37 warnings 保持（T10 基线），无新增 error/warning。
+- **PowerShell 陷阱**：`$out = cmd 2>&1` 后 Select-String 计数可能为 0（ErrorRecord 对象），要直接管道 `cmd 2>&1 | Select-String -SimpleMatch "warning - "` 才准。

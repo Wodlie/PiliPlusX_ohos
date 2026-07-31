@@ -10,6 +10,7 @@ import 'package:PiliPlus/common/widgets/image_grid/image_grid_view.dart'
     show ImageGridView, ImageModel;
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
 import 'package:PiliPlus/grpc/reply.dart';
+import 'package:PiliPlus/http/api_hosts.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/audio_normalization.dart';
@@ -615,6 +616,80 @@ List<SettingsModel> get extraSettings => [
         Update.checkUpdate(false);
       }
     },
+  ),
+  NormalModel(
+    title: '设置港澳台代理',
+    leading: const Icon(Icons.sailing_rounded),
+    getSubtitle: () {
+      final url = Pref.apiHKUrl;
+      return '当前港澳台代理配置: 「${url == '' ? '不代理' : Pref.apiHKUrl}」';
+    },
+    onTap: (context, setState) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          String valueStr = Pref.apiHKUrl;
+          return AlertDialog(
+            title: const Text('港澳台代理链接'),
+            content: TextField(
+              autofocus: true,
+              onChanged: (value) => valueStr = value,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                hintText: '请输入URL如:https://app.bilibili.com',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: Get.back,
+                child: Text(
+                  '取消',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (!valueStr.isNotEmpty) {
+                    SmartDialog.showToast('代理链接不能为空');
+                    return;
+                  }
+                  if (!valueStr.toLowerCase().startsWith('http')) {
+                    SmartDialog.showToast('代理链接格式错误');
+                    return;
+                  }
+                  if (valueStr.toLowerCase().endsWith('/')) {
+                    SmartDialog.showToast('末尾不能有/');
+                    return;
+                  }
+                  Get.back();
+                  await GStorage.setting.put(
+                    SettingBoxKey.apiHKUrl,
+                    valueStr,
+                  );
+                  setState();
+                },
+                child: const Text('确定'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  ),
+  NormalModel(
+    title: '自定义 API 主机',
+    leading: const Icon(Icons.dns_outlined),
+    getSubtitle: () {
+      final configured = apiHostEntries
+          .where(
+            (e) => GStorage.setting.get(e.settingKey, defaultValue: '') != '',
+          )
+          .length;
+      return '已配置 $configured 个/共 ${apiHostEntries.length} 个子域';
+    },
+    onTap: (context, setState) => Get.toNamed('/apiHostSetting'),
   ),
 ];
 
