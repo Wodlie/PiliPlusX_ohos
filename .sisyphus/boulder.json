@@ -25,6 +25,135 @@
       "session_id": "ses_047bd8a98ffemsFh0sYtcYEECw",
       "agent": "general",
       "updated_at": "2026-07-31T13:26:08.101Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "AccountType 6 值 + api_type 路由表 + desc",
+      "session_id": "ses_047a1b3e5ffe6TdYJRxLeb7S4j",
+      "agent": "general",
+      "updated_at": "2026-07-31T13:34:22.509Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Hive 持久化扩展（field 4/5）+ 4→6 迁移 + 迁移测试（最高优先级）",
+      "session_id": "ses_0479c9ce4ffe4lKvj3fOZoBqwN",
+      "agent": "general",
+      "updated_at": "2026-07-31T14:25:56.193Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Accounts 生命周期状态机（canonicalize/snapshot/reply/blacklist）",
+      "session_id": "ses_0476cca3cffeE6LWEy8qXHO7e1",
+      "agent": "general",
+      "updated_at": "2026-07-31T14:35:49.184Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "RequestIdentityAdapter + 身份解析接入",
+      "session_id": "ses_047645bd6ffeAjkDPj261ikkIR",
+      "agent": "general",
+      "updated_at": "2026-07-31T14:55:19.327Z"
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "gRPC 头按账号快照 + wbi 风控字段",
+      "session_id": "ses_047522679ffe8xm0xMbioskr4b",
+      "agent": "general",
+      "updated_at": "2026-07-31T15:10:23.345Z"
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "BUVID 激活重试 + 登出清理 + 昵称缓存",
+      "session_id": "ses_047445d5fffeE203ihAL9uROeD",
+      "agent": "general",
+      "updated_at": "2026-07-31T15:17:39.726Z"
+    },
+    "todo:11": {
+      "task_key": "todo:11",
+      "task_label": "11",
+      "task_title": "CustomHostInterceptor + HkApiRetryInterceptor + api_host_page 入口",
+      "session_id": "ses_0473de612ffepe6bREz1cX3ipC",
+      "agent": "general",
+      "updated_at": "2026-07-31T15:27:06.763Z"
+    },
+    "todo:12": {
+      "task_key": "todo:12",
+      "task_label": "12",
+      "task_title": "港澳台番剧（HomeTab/搜索/pgc 代理）",
+      "session_id": "ses_0473555ceffeE8cCWnBpNCKoTg",
+      "agent": "general",
+      "updated_at": "2026-07-31T15:35:58.134Z"
+    },
+    "todo:14": {
+      "task_key": "todo:14",
+      "task_label": "14",
+      "task_title": "评论屏蔽 checkBlockReason 5 策略 + BlockedReplyBanner",
+      "session_id": "ses_0471e8492ffePrVwGEBMeZv1yz",
+      "agent": "general",
+      "updated_at": "2026-07-31T16:09:37.881Z"
+    },
+    "todo:15": {
+      "task_key": "todo:15",
+      "task_label": "15",
+      "task_title": "评论翻译横幅 + 评论申诉",
+      "session_id": "ses_0470e6ae1ffeRO7QYwMKDrc7DZ",
+      "agent": "general",
+      "updated_at": "2026-07-31T16:20:41.142Z"
+    },
+    "todo:16": {
+      "task_key": "todo:16",
+      "task_label": "16",
+      "task_title": "canSort + 长按拉黑/分享 + 手动加载评论图",
+      "session_id": "ses_04704b8d0ffe3vHq71CpuilSxn",
+      "agent": "general",
+      "updated_at": "2026-07-31T16:31:13.762Z"
+    },
+    "todo:18": {
+      "task_key": "todo:18",
+      "task_label": "18",
+      "task_title": "Stein 互动视频数据模型 + 进度恢复",
+      "session_id": "ses_046faa33cffe7YIkotf4y05npA",
+      "agent": "general",
+      "updated_at": "2026-07-31T16:54:06.214Z"
+    },
+    "todo:19": {
+      "task_key": "todo:19",
+      "task_label": "19",
+      "task_title": "Stein 播放器 UI（回溯面板/BottomControlType.stein/showStein/interactiveChild）",
+      "session_id": "ses_046e5a72affeEwIrFtBWaPnOkb",
+      "agent": "general",
+      "updated_at": "2026-07-31T17:06:03.308Z"
+    },
+    "todo:24": {
+      "task_key": "todo:24",
+      "task_label": "24",
+      "task_title": "动态/首页刷新 FAB + 剪贴板搜索",
+      "session_id": "ses_046daeac9ffe2XDlN6paRat2JZ",
+      "agent": "general",
+      "updated_at": "2026-07-31T17:28:36.740Z"
+    },
+    "todo:30": {
+      "task_key": "todo:30",
+      "task_label": "30",
+      "task_title": "全量 dart analyze + flutter build hap",
+      "session_id": "ses_046c5976cffeV16ZEogLaYL2ng",
+      "agent": "general",
+      "updated_at": "2026-07-31T18:06:12.659Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**Plan Compliance Audit** — `oracle`",
+      "session_id": "ses_0469ab5e7ffeohsON8W81XBnck",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-07-31T18:22:50.405Z"
     }
   }
 }
